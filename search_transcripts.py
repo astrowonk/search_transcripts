@@ -83,10 +83,11 @@ class LoadTranscripts():
         """take the list of dictionaries and create the sqlite table and indices."""
         if self.conn is None:
             self.conn = create_engine(f'sqlite:///{self.output_prefix}main.db')
-
         assert isinstance(self.conn,
                           Engine), "Connection must be a sqlachemy engine."
+        print(f"Writing SQL with {self.conn}")
 
+        print("Making table all_segments")
         self.conn.execute(
             "drop table if exists all_segments;"
         )  #this probably doesn't work on a bunch of other connection types
@@ -109,6 +110,8 @@ class LoadTranscripts():
             "CREATE INDEX idx_segments on all_segments(segment,episode_key);")
 
         ## search chunk data
+        print("Making table search_data")
+
         self.conn.execute("drop table if exists search_data;")
         df = pd.DataFrame(self.search_docs).drop(
             columns=['text', 'end']).reset_index().rename(
@@ -117,6 +120,8 @@ class LoadTranscripts():
                   con=self.conn,
                   if_exists='append',
                   index=False)
+        print("Making indices")
+
         self.conn.execute(
             "CREATE UNIQUE INDEX idx_search_doc_id on search_data(doc_id)")
 
@@ -124,6 +129,7 @@ class LoadTranscripts():
             "CREATE INDEX idx_search_doc_id_key on search_data(doc_id,episode_key)"
         )
 
+        print(f'Saving {self.output_prefix}bm25.pickle')
         with open(f'{self.output_prefix}bm25.pickle', 'wb') as f:
             pickle.dump(self.bm25, f)
 
@@ -135,6 +141,7 @@ class LoadTranscripts():
                                        con=self.conn,
                                        if_exists='replace')
 
+        print(f'Saving {self.output_prefix}bm25_full.pickle')
         with open(f'{self.output_prefix}bm25_full.pickle', 'wb') as f:
             pickle.dump(self.bm25_full_transcript, f)
 
