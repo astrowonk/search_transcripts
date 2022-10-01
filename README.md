@@ -9,4 +9,17 @@ This module has two classes:
 * `SearchTranscripts`: This uses the index and Sqlite database to return a pandas dataframe of the top results for the search query.
 
 
+Usage:
 
+```{python}
+
+from search_transcripts import LoadTranscripts, SearchTranscripts
+
+l = LoadTranscripts('transcripts') ## will create main.db and bm25.pickle
+
+
+
+s = SearchTranscripts()
+
+
+```
