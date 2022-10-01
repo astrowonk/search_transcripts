@@ -1,3 +1,4 @@
+import multiprocessing
 import re
 from nltk import word_tokenize
 from nltk.stem.porter import PorterStemmer
@@ -10,6 +11,13 @@ from tqdm.notebook import tqdm
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 import pickle
+
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import cpu_count
+
+
+def flatten_list(list_of_lists):
+    return [y for x in list_of_lists for y in x]
 
 
 class LoadTranscripts():
@@ -149,10 +157,20 @@ class LoadTranscripts():
         """tokenize and segment each transcript."""
         self.tokenized_docs = []
         self.search_docs = []
-        for key, data in tqdm(self.data.items()):
-            search_docs, tokenined_docs = self.create_rolling_docs(data, key)
-            self.tokenized_docs.extend(tokenined_docs)
-            self.search_docs.extend(search_docs)
+
+        workers = multiprocessing.cpu_count()
+        print(f'build search documents with {workers} workers')
+
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            out = list(
+                tqdm(executor.map(self.create_rolling_docs, self.data.items()),
+                     total=len(self.data)))
+        self.out = out
+        self.process_search_docs()
+
+    def process_search_docs(self):
+        self.search_docs = flatten_list([x[0] for x in self.out])
+        self.tokenized_docs = flatten_list([x[1] for x in self.out])
         self.bm25 = BM25Plus(self.tokenized_docs)
 
     def build_full_transcript_search_index(self):
@@ -169,11 +187,11 @@ class LoadTranscripts():
                                                columns=['episode_key'])
         self.bm25_full_transcript = BM25Plus(data_list)
 
-    def create_rolling_docs(self, data, key):
+    def create_rolling_docs(self, x):
         """For a given transcript, chunk 30 segments together to make an indexable document."""
         i = 0
         all_chunk = []
-
+        key, data = x
         while i < (data_length := len(data)):
             last_index = min(i + self.chunk_length, data_length - 1)
             chunk = data[i:last_index + 1]
