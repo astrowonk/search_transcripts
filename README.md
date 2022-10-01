@@ -18,8 +18,15 @@ from search_transcripts import LoadTranscripts, SearchTranscripts
 l = LoadTranscripts('transcripts') ## will create main.db and bm25.pickle
 
 
-
 s = SearchTranscripts()
+
+## uses the bm25 chunked index to score and returns a pandas dataframe of the top scoring transcript sections, across all transcripts.
+
+s.search("starship enterprise") 
+
+## Uses a bm25 index on the entire transcripts to find the transcripts with the highest score for the search term.
+s.search_full_transcript("starship enterprise)
 
 
 ```
+
