@@ -1,6 +1,6 @@
 # Transcript Search
 
-This code was designed to make OpenAI's whisper transcripts easily searchable. i.e. to find out at what time in a transcript a certain topic was discusesd, etc.
+This code was designed to make OpenAI's whisper transcripts easily searchable. i.e. to find out at what time in a transcript a certain topic was discusesd, etc. However it should work with any folder of .VTT files.
 
 This module has two classes:
 
