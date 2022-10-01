@@ -4,7 +4,7 @@ This code was designed to make OpenAI's whisper transcripts easily searchable. i
 
 This module has two classes:
 
-* `LoadTranscripts`: This creates a sqlite database and a BM 25 index from a a folder of transcript files (`.vtt` or `.json` files). It creates longer chunks of text from the short transcript segments in the original file in order to make the text blocks searchable.
+* `LoadTranscripts`: This creates a sqlite database and [a BM 25 index](https://pypi.org/project/rank-bm25/) from a folder of transcript files (`.vtt` or `.json` files). It creates longer chunks of text from the short transcript segments in the original file in order to make the text blocks searchable.
 
 * `SearchTranscripts`: This uses the index and Sqlite database to return a pandas dataframe of the top results for the search query.
 
@@ -30,3 +30,27 @@ s.search_full_transcript("starship enterprise)
 
 ```
 
+## JSON transcripts?
+
+ So, before I realized Whisper would create a standard .VTT file, I was using the python API directly. It generates a list of python dictionaries. Saving that as JSON seemed logical at the time. I find the JSON much more easily machine readable than .VTT, and can easily be converted to VTT, so I still support this somewhat quirky format. It looks like so:
+
+```{json}
+    [
+        {
+        "start": 602.5,
+        "end": 605.78,
+        "text": " But thought they were God's gift algorithms my advice to the listener would be this"
+    },
+    {
+        "start": 606.1800000000001,
+        "end": 610.74,
+        "text": " It's important to have a goal to work toward and accomplish rather than just randomly learning and half building things"
+    },
+    {
+        "start": 610.74,
+        "end": 613.0600000000001,
+        "text": " Having a specific thing you want to build is a good substitute"
+    }
+    ]
+
+```
