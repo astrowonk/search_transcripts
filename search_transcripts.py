@@ -229,7 +229,7 @@ class LoadTranscripts():
         df['score'] = scores
         df['_exact_match'] = df['text'].apply(
             lambda x: search.lower() in x.lower()).astype(int)
-        return df.sort_values('_exact_match', ascending=False)
+        return df.sort_values(['_exact_match','score'], ascending=False)
 
     @staticmethod
     def make_timestamp(x):
