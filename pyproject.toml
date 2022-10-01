@@ -27,9 +27,9 @@ dependencies = []
 dynamic = ["version"]
 
 [project.urls]
-Documentation = "https://github.com/unknown/search-transcripts#readme"
-Issues = "https://github.com/unknown/search-transcripts/issues"
-Source = "https://github.com/unknown/search-transcripts"
+Documentation = "https://github.com/astrowonk/search_transcripts/#readme"
+Issues = "https://github.com/astrowonk/search_transcripts/issues"
+Source = "https://github.com/astrowonk/search_transcripts"
 
 [tool.hatch.version]
 path = "search_transcripts/__about__.py"
