@@ -36,12 +36,7 @@ s.search_full_transcript("starship enterprise)
 
 ```{json}
     [
-        {
-        "start": 602.5,
-        "end": 605.78,
-        "text": " But thought they were God's gift algorithms my advice to the listener would be this"
-    },
-    {
+           {
         "start": 606.1800000000001,
         "end": 610.74,
         "text": " It's important to have a goal to work toward and accomplish rather than just randomly learning and half building things"
@@ -50,7 +45,19 @@ s.search_full_transcript("starship enterprise)
         "start": 610.74,
         "end": 613.0600000000001,
         "text": " Having a specific thing you want to build is a good substitute"
-    }
+    },
+    {
+        "start": 613.38,
+        "end": 619.78,
+        "text": " Keep making things until you've made something you're proud enough a proud of enough to show off in an interview by the time you've built a few"
+    },
+    {
+        "start": 619.78,
+        "end": 624.26,
+        "text": " Things you'll start developing the taste you need to make that determination of what's quote unquote good enough"
+    },
+
+
     ]
 
 ```
