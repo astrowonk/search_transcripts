@@ -1,7 +1,8 @@
+from email.mime import base
 import re
 from nltk import word_tokenize
 from nltk.stem.porter import PorterStemmer
-from rank_bm25 import BM25Plus
+from rank_bm25 import BM25Okapi
 import numpy as np
 import pandas as pd
 import glob
@@ -121,8 +122,7 @@ class LoadTranscripts():
 
         self.conn.execute("drop table if exists search_data;")
         df = pd.DataFrame(self.search_docs).drop(
-            columns=['text', 'end']).reset_index().rename(
-                columns={'index': 'doc_id'})
+            columns=['end']).reset_index().rename(columns={'index': 'doc_id'})
         df.to_sql('search_data',
                   con=self.conn,
                   if_exists='append',
@@ -170,7 +170,7 @@ class LoadTranscripts():
     def process_search_docs(self):
         self.search_docs = flatten_list([x[0] for x in self.out])
         self.tokenized_docs = flatten_list([x[1] for x in self.out])
-        self.bm25 = BM25Plus(self.tokenized_docs)
+        self.bm25 = BM25Okapi(self.tokenized_docs)
 
     def build_full_transcript_search_index(self):
         """    make an index on the full transcript
@@ -184,7 +184,7 @@ class LoadTranscripts():
                                                index=range(
                                                    len(self.data.keys())),
                                                columns=['episode_key'])
-        self.bm25_full_transcript = BM25Plus(data_list)
+        self.bm25_full_transcript = BM25Okapi(data_list)
 
     def create_rolling_docs(self, x):
         """For a given transcript, chunk 30 segments together to make an indexable document."""
@@ -297,6 +297,17 @@ class SearchTranscripts(LoadTranscripts):
         base_res['text'] = base_res[[
             'start_segment', 'end_segment', 'episode_key'
         ]].apply(lambda x: self.assemble_chunk_text(x[0], x[1], x[2]), axis=1)
+        base_res['exact_match'] = base_res['text'].apply(
+            lambda x: search.lower() in x.lower()).astype(int)
+        base_res['text'] = base_res['text'].apply(
+            lambda x: process_bold(x, search))
+
+        return base_res.sort_values('exact_match', ascending=False)
+
+    def exact_string_search(self, search):
+        base_res = pd.read_sql(
+            f"select * from search_data where text like '%{search}%'",
+            con=self.conn)
         base_res['exact_match'] = base_res['text'].apply(
             lambda x: search.lower() in x.lower()).astype(int)
         base_res['text'] = base_res['text'].apply(
