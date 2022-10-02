@@ -1,4 +1,3 @@
-import multiprocessing
 import re
 from nltk import word_tokenize
 from nltk.stem.porter import PorterStemmer
@@ -158,7 +157,7 @@ class LoadTranscripts():
         self.tokenized_docs = []
         self.search_docs = []
 
-        workers = multiprocessing.cpu_count()
+        workers = cpu_count()
         print(f'build search documents with {workers} workers')
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
