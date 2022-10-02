@@ -304,10 +304,15 @@ class SearchTranscripts(LoadTranscripts):
 
         return base_res.sort_values('exact_match', ascending=False)
 
-    def exact_string_search(self, search):
-        base_res = pd.read_sql(
-            f"select * from search_data where text like '%{search}%'",
-            con=self.conn)
+    def exact_string_search(self, search, limit_with_index=False):
+        if not limit_with_index:
+            query = f"select * from search_data where text like '%{search}%'"
+        else:
+            scores = self.bm25.get_scores(self.stem_text(search))
+            nonzeroscores = [str(x) for x in np.where(scores > 0)[0]]
+            query = f"select * from (select * from search_data where doc_id in ({','.join([str(x) for x in list(nonzeroscores)])})) where text like '%{search}%';"
+
+        base_res = pd.read_sql(query, con=self.conn)
         base_res['exact_match'] = base_res['text'].apply(
             lambda x: search.lower() in x.lower()).astype(int)
         base_res['text'] = base_res['text'].apply(
