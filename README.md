@@ -6,9 +6,9 @@ I used Whisper OpenAI to transcribe [the Accidental Tech Podcast](https://atp.fm
 
 This module has two classes:
 
-* `LoadTranscripts`: This creates a sqlite database and [a BM 25 index](https://pypi.org/project/rank-bm25/) from a folder of transcript files (`.vtt` or `.json` files). It creates longer chunks of text from the short transcript segments in the original file in order to make the text blocks searchable.
+* `LoadTranscripts`: This creates a sqlite database and [FTS5 virtual table](https://www.sqlite.org/fts5.html)from a folder of transcript files (`.vtt` or `.json` files). It creates longer chunks of text from the short transcript segments in the original file in order to make the text blocks searchable.
 
-* `SearchTranscripts`: This uses the index and Sqlite database to return a pandas dataframe of the top results for the search query.
+* `SearchTranscripts`: This uses the Sqlite database to return a pandas dataframe of the top results for the search query.
 
 
 Usage:
