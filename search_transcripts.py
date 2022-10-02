@@ -305,6 +305,7 @@ class SearchTranscripts(LoadTranscripts):
         return base_res.sort_values('exact_match', ascending=False)
 
     def exact_string_search(self, search, limit_with_index=False):
+        """Query text blocks directly with sql lite, optionally limiting scope using the Bm25 index."""
         if not limit_with_index:
             query = f"select * from search_data where text like '%{search}%'"
         else:
