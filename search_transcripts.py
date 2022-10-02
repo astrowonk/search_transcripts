@@ -218,11 +218,26 @@ class SearchTranscripts(LoadTranscripts):
             print(f"Using SQL Lite with {input_prefix}main.db ")
             self.conn = create_engine(f'sqlite:///{input_prefix}main.db')
 
+    @staticmethod
+    def handle_apostrophe(x):
+        """Handle apostrophes inside Sqlite FTS5"""
+        if "'" in x:
+            fixed = re.sub("'", "''", x)
+            return '"' + fixed + '"'
+        return x
+
+    def safe_search(self, search):
+        """Prepare any query with an apostrophe for FTS5"""
+        if "'" not in search:
+            return search
+        return ' '.join([self.handle_apostrophe(x) for x in search.split(' ')])
+
     def search_bm25_chunk(self, search):
         """Use the BM 25 index to retrieve the top results from sql."""
         #print(','.join(list(top_indices)))
+
         df = pd.read_sql(
-            f"select bm25(search_data) as score, * from search_data where text MATCH '{search}' order by bm25(search_data) limit 50;",
+            f"select bm25(search_data) as score, * from search_data where text MATCH '{self.safe_search(search)}' order by bm25(search_data) limit 50;",
             con=self.conn)
 
         return df
