@@ -61,7 +61,6 @@ class LoadTranscripts():
     def process_all(self):
         """build search documents and save the database"""
         self.build_search_documents()
-        self.build_full_transcript_search_index()
         self.save_data()
 
     def load_all_files(self, path):
@@ -123,34 +122,19 @@ class LoadTranscripts():
         self.conn.execute("drop table if exists search_data;")
         df = pd.DataFrame(self.search_docs).drop(
             columns=['end']).reset_index().rename(columns={'index': 'doc_id'})
+        self.conn.execute(
+            "CREATE VIRTUAL TABLE search_data USING fts5(doc_id, episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
+        )
         df.to_sql('search_data',
                   con=self.conn,
                   if_exists='append',
                   index=False)
-        print("Making indices")
 
-        self.conn.execute(
-            "CREATE UNIQUE INDEX idx_search_doc_id on search_data(doc_id)")
+        #print(f'Saving {self.output_prefix}bm25.pickle')
+        #with open(f'{self.output_prefix}bm25.pickle', 'wb') as f:
+        #    pickle.dump(self.bm25, f)
 
-        self.conn.execute(
-            "CREATE INDEX idx_search_doc_id_key on search_data(doc_id,episode_key)"
-        )
-
-        print(f'Saving {self.output_prefix}bm25.pickle')
-        with open(f'{self.output_prefix}bm25.pickle', 'wb') as f:
-            pickle.dump(self.bm25, f)
-
-        self.save_full_transcript_data()
-
-    def save_full_transcript_data(self):
-        """ save the full transcript index and sql table"""
-        self.full_transcript_df.to_sql('full_episodes',
-                                       con=self.conn,
-                                       if_exists='replace')
-
-        print(f'Saving {self.output_prefix}bm25_full.pickle')
-        with open(f'{self.output_prefix}bm25_full.pickle', 'wb') as f:
-            pickle.dump(self.bm25_full_transcript, f)
+        #self.save_full_transcript_data()
 
     def build_search_documents(self):
         """tokenize and segment each transcript."""
@@ -165,26 +149,7 @@ class LoadTranscripts():
                 tqdm(executor.map(self.create_rolling_docs, self.data.items()),
                      total=len(self.data)))
         self.out = out
-        self.process_search_docs()
-
-    def process_search_docs(self):
         self.search_docs = flatten_list([x[0] for x in self.out])
-        self.tokenized_docs = flatten_list([x[1] for x in self.out])
-        self.bm25 = BM25Okapi(self.tokenized_docs)
-
-    def build_full_transcript_search_index(self):
-        """    make an index on the full transcript
-        """
-        data_list = []
-        for key, data in tqdm(self.data.items()):
-            data = "".join([x['text'] for x in data])
-            data_list.append(self.stem_text(data))
-
-        self.full_transcript_df = pd.DataFrame(pd.Series(self.data.keys()),
-                                               index=range(
-                                                   len(self.data.keys())),
-                                               columns=['episode_key'])
-        self.bm25_full_transcript = BM25Okapi(data_list)
 
     def create_rolling_docs(self, x):
         """For a given transcript, chunk 30 segments together to make an indexable document."""
@@ -216,19 +181,8 @@ class LoadTranscripts():
             })
             i = i + self.chunk_length + self.overlap_length
         search_docs = all_chunk
-        tokenized_docs = [self.stem_text(x['text']) for x in search_docs]
+        tokenized_docs = None
         return search_docs, tokenized_docs
-
-    def search(self, search):
-        """search the index and return documents from the search_docs attribute. Used mostly for testing the index."""
-        res = self.bm25.get_scores(self.stem_text(search))
-        top_indices = np.argsort(-res)[:25]
-        scores = res[top_indices]
-        df = pd.DataFrame(self.search_docs).iloc[top_indices]
-        df['score'] = scores
-        df['_exact_match'] = df['text'].apply(
-            lambda x: search.lower() in x.lower()).astype(int)
-        return df.sort_values(['_exact_match', 'score'], ascending=False)
 
     @staticmethod
     def make_timestamp(x):
@@ -254,31 +208,24 @@ class SearchTranscripts(LoadTranscripts):
 
         if input_prefix:
             input_prefix = input_prefix + '_'
-        with open(f'{input_prefix}bm25.pickle', 'rb') as f:
-            self.bm25 = pickle.load(f)
-        with open(f'{input_prefix}bm25_full.pickle', 'rb') as f:
-            self.bm25_full_transcript = pickle.load(f)
+        # with open(f'{input_prefix}bm25.pickle', 'rb') as f:
+        #     self.bm25 = pickle.load(f)
+        # with open(f'{input_prefix}bm25_full.pickle', 'rb') as f:
+        #     self.bm25_full_transcript = pickle.load(f)
         if isinstance(con, Engine):
             self.conn = con
         else:
             print(f"Using SQL Lite with {input_prefix}main.db ")
             self.conn = create_engine(f'sqlite:///{input_prefix}main.db')
-        self.porter_stemmer = PorterStemmer()
-        self.stop_words = []
 
     def search_bm25_chunk(self, search):
         """Use the BM 25 index to retrieve the top results from sql."""
-        res = self.bm25.get_scores(self.stem_text(search))
-        top_indices = np.argsort(-res)[:25]
-        scores = res[top_indices]
-        score_map = {key: val for key, val in zip(top_indices, scores)}
         #print(','.join(list(top_indices)))
         df = pd.read_sql(
-            f"select * from search_data where doc_id in ({','.join([str(x) for x in top_indices])})",
+            f"select bm25(search_data) as score, * from search_data where text MATCH '{search}' order by bm25(search_data);",
             con=self.conn)
 
-        df['score'] = df['doc_id'].map(score_map)
-        return df.query('score > 0').sort_values('score', ascending=False)
+        return df
 
     def get_segment_detail(self, key, start, end):
         """Get the text of the appropriate segments from sql. a future version may create time stamp specicifc links for each section."""
@@ -294,49 +241,13 @@ class SearchTranscripts(LoadTranscripts):
 
     def search(self, search):
         base_res = self.search_bm25_chunk(search)
-        base_res['text'] = base_res[[
-            'start_segment', 'end_segment', 'episode_key'
-        ]].apply(lambda x: self.assemble_chunk_text(x[0], x[1], x[2]), axis=1)
+        search = search.lower().strip('"')
         base_res['exact_match'] = base_res['text'].apply(
-            lambda x: search.lower() in x.lower()).astype(int)
+            lambda x: search in x.lower()).astype(int)
         base_res['text'] = base_res['text'].apply(
             lambda x: process_bold(x, search))
 
         return base_res.sort_values('exact_match', ascending=False)
-
-    def exact_string_search(self, search, limit_with_index=False):
-        """Query text blocks directly with sql lite, optionally limiting scope using the Bm25 index."""
-        if not limit_with_index:
-            query = f"select * from search_data where text like '%{search}%' limit 50;"
-            base_res = pd.read_sql(query, con=self.conn)
-
-        else:
-            scores = self.bm25.get_scores(self.stem_text(search))
-            nonzerolocs = np.where(scores > 0)[0]
-            nonzeroscores = [str(x) for x in nonzerolocs]
-            score_map = pd.Series(scores[nonzerolocs],
-                                  index=nonzerolocs,
-                                  name='score')
-            query = f"select * from (select * from search_data where doc_id in ({','.join([str(x) for x in list(nonzeroscores)])})) where text like '%{search}%' limit 50;"
-            base_res = pd.read_sql(query, con=self.conn)
-            base_res['score'] = base_res['doc_id'].map(score_map)
-
-        base_res['exact_match'] = base_res['text'].apply(
-            lambda x: search.lower() in x.lower()).astype(int)
-        base_res['text'] = base_res['text'].apply(
-            lambda x: process_bold(x, search))
-
-        return base_res.sort_values('exact_match', ascending=False)
-
-    def search_full_transcript(self, search):
-        res = self.bm25_full_transcript.get_scores(self.stem_text(search))
-        top_indices = np.argsort(-res)[:10]
-        scores = res[top_indices]
-        df = pd.read_sql(
-            f'select * from full_episodes where "index" in ({",".join([str(x) for x in top_indices])})',
-            con=self.conn)
-        df['scores'] = scores
-        return df
 
 
 def process_bold(x, search):
