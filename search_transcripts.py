@@ -229,7 +229,7 @@ class LoadTranscripts():
         df['score'] = scores
         df['_exact_match'] = df['text'].apply(
             lambda x: search.lower() in x.lower()).astype(int)
-        return df.sort_values(['_exact_match','score'], ascending=False)
+        return df.sort_values(['_exact_match', 'score'], ascending=False)
 
     @staticmethod
     def make_timestamp(x):
@@ -237,7 +237,7 @@ class LoadTranscripts():
         hours = int(x // 3600)
         minutes = int((x - hours * 3600) // 60)
         seconds = x - hours * 3600 - minutes * 60
-        return f"{process_hour(hours)}{minutes:02}:{seconds:.2f}"
+        return f"{process_hour(hours)}{minutes:02}:{seconds:05.2f}"
 
     def stem_text(self, text):
         """Stem with word tokenize and the porter stemmer"""
