@@ -221,8 +221,8 @@ class SearchTranscripts(LoadTranscripts):
         #print(','.join(list(top_indices)))
 
         df = pd.read_sql(
-            f"select bm25(search_data) as score, * from search_data where text MATCH '{self.safe_search(search)}' order by bm25(search_data) limit 50;",
-            con=self.conn)
+            f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit 50;",
+            con=self.conn,params=[self.safe_search(search)])
 
         return df
 
@@ -231,12 +231,6 @@ class SearchTranscripts(LoadTranscripts):
         return pd.read_sql(
             f"SELECT * from all_segments where episode_key = '{key}' and segment BETWEEN {start} and {end}",
             con=self.conn)
-
-    def assemble_chunk_text(self, start, end, key):
-
-        segment_details = self.get_segment_detail(key, start,
-                                                  end).to_dict('records')
-        return ''.join([x['text'] for x in segment_details])
 
     def search(self, search):
         base_res = self.search_bm25_chunk(search)
