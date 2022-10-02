@@ -222,7 +222,7 @@ class SearchTranscripts(LoadTranscripts):
         """Use the BM 25 index to retrieve the top results from sql."""
         #print(','.join(list(top_indices)))
         df = pd.read_sql(
-            f"select bm25(search_data) as score, * from search_data where text MATCH '{search}' order by bm25(search_data);",
+            f"select bm25(search_data) as score, * from search_data where text MATCH '{search}' order by bm25(search_data) limit 50;",
             con=self.conn)
 
         return df
