@@ -247,7 +247,8 @@ class SearchTranscripts(LoadTranscripts):
         base_res['text'] = base_res['text'].apply(
             lambda x: process_bold(x, search))
 
-        return base_res.sort_values('exact_match', ascending=False)
+        return base_res.sort_values(['exact_match', 'score'],
+                                    ascending=[False, True])
 
 
 def process_bold(x, search):
