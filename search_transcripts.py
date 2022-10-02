@@ -1,16 +1,10 @@
-from email.mime import base
 import re
-from nltk import word_tokenize
-from nltk.stem.porter import PorterStemmer
-from rank_bm25 import BM25Okapi
-import numpy as np
 import pandas as pd
 import glob
 import json
 from tqdm.notebook import tqdm
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
-import pickle
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
@@ -55,7 +49,6 @@ class LoadTranscripts():
         self.overlap_length = overlap_length
         self.key_regex = key_regex
         self.load_all_files(path)
-        self.porter_stemmer = PorterStemmer()
         self.stop_words = []
 
     def process_all(self):
@@ -191,15 +184,6 @@ class LoadTranscripts():
         minutes = int((x - hours * 3600) // 60)
         seconds = x - hours * 3600 - minutes * 60
         return f"{process_hour(hours)}{minutes:02}:{seconds:05.2f}"
-
-    def stem_text(self, text):
-        """Stem with word tokenize and the porter stemmer"""
-        text = re.sub(r'\W+', ' ', text)
-        tokens = [
-            w.lower() for w in word_tokenize(text)
-            if not w.lower() in self.stop_words
-        ]
-        return [self.porter_stemmer.stem(item.lower()) for item in tokens]
 
 
 class SearchTranscripts(LoadTranscripts):

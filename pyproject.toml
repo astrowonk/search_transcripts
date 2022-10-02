@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["sqlachemy","pandas","numpy","rank_bm25","nltk"]
+dependencies = ["sqlachemy","pandas","numpy","nltk"]
 dynamic = ["version"]
 
 [project.urls]
