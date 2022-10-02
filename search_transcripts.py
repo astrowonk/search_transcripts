@@ -307,7 +307,7 @@ class SearchTranscripts(LoadTranscripts):
     def exact_string_search(self, search, limit_with_index=False):
         """Query text blocks directly with sql lite, optionally limiting scope using the Bm25 index."""
         if not limit_with_index:
-            query = f"select * from search_data where text like '%{search}%'"
+            query = f"select * from search_data where text like '%{search}%' limit 50;"
             base_res = pd.read_sql(query, con=self.conn)
 
         else:
@@ -317,7 +317,7 @@ class SearchTranscripts(LoadTranscripts):
             score_map = pd.Series(scores[nonzerolocs],
                                   index=nonzerolocs,
                                   name='score')
-            query = f"select * from (select * from search_data where doc_id in ({','.join([str(x) for x in list(nonzeroscores)])})) where text like '%{search}%';"
+            query = f"select * from (select * from search_data where doc_id in ({','.join([str(x) for x in list(nonzeroscores)])})) where text like '%{search}%' limit 50;"
             base_res = pd.read_sql(query, con=self.conn)
             base_res['score'] = base_res['doc_id'].map(score_map)
 
