@@ -210,20 +210,36 @@ class SearchTranscripts(LoadTranscripts):
             return '"' + fixed + '"'
         return x
 
+    @staticmethod
+    def handle_apostrophe_exact(x):
+        """Handle apostrophes inside Sqlite FTS5"""
+        if "'" in x:
+            fixed = re.sub("'", "''", x)
+            return fixed
+        return x
+
     def safe_search(self, search):
         """Prepare any query with an apostrophe for FTS5"""
         if "'" not in search:
             return search
-        return ' '.join([self.handle_apostrophe(x) for x in search.split(' ')])
+        if search.startswith('"') and search.endswith('"'):
+            print("exact")
+            return ' '.join(
+                [self.handle_apostrophe_exact(x)
+                 for x in search.split(' ')])
+        else:
+            return ' '.join(
+                [self.handle_apostrophe(x) for x in search.split(' ')])
 
     def search_bm25_chunk(self, search):
         """Use the BM 25 index to retrieve the top results from sql."""
         #print(','.join(list(top_indices)))
 
+        print(self.safe_search(search))
         df = pd.read_sql(
             f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit 50;",
-            con=self.conn,params=[self.safe_search(search)])
-
+            con=self.conn,
+            params=[self.safe_search(search)])
         return df
 
     def get_segment_detail(self, key, start, end):
