@@ -225,8 +225,7 @@ class SearchTranscripts(LoadTranscripts):
         if search.startswith('"') and search.endswith('"'):
             print("exact")
             return ' '.join(
-                [self.handle_apostrophe_exact(x)
-                 for x in search.split(' ')])
+                [self.handle_apostrophe_exact(x) for x in search.split(' ')])
         else:
             return ' '.join(
                 [self.handle_apostrophe(x) for x in search.split(' ')])
