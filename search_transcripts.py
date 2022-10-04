@@ -1,3 +1,4 @@
+from errno import EPIPE
 import re
 import pandas as pd
 import glob
@@ -230,15 +231,25 @@ class SearchTranscripts(LoadTranscripts):
             return ' '.join(
                 [self.handle_apostrophe(x) for x in search.split(' ')])
 
-    def search_bm25_chunk(self, search):
+    def search_bm25_chunk(self, search, episode_range=None):
         """Use the BM 25 index to retrieve the top results from sql."""
         #print(','.join(list(top_indices)))
 
         print(self.safe_search(search))
-        df = pd.read_sql(
-            f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit 50;",
-            con=self.conn,
-            params=[self.safe_search(search)])
+        if not episode_range:
+            df = pd.read_sql(
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit 50;",
+                con=self.conn,
+                params=[self.safe_search(search)])
+        else:
+            print(episode_range[0], episode_range[1])
+            df = pd.read_sql(
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit 50;",
+                con=self.conn,
+                params=[
+                    self.safe_search(search), episode_range[0],
+                    episode_range[1]
+                ])
         return df
 
     def get_segment_detail(self, key, start, end):
