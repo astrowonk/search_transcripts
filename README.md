@@ -1,6 +1,6 @@
 # Transcript Search
 
-This code was designed to make OpenAI's whisper transcripts easily searchable. i.e. to find out at what time in a transcript a certain topic was discusesd, etc. However, it should work with any folder of .VTT files.
+This code was designed to make a large number of OpenAI's whisper transcripts easily searchable. So one can find a particular passage or term occurs and at what time in the transcript. However, it should work with any folder of .VTT files: non just OpenAI transcripts of podcasts.
 
 I used Whisper OpenAI to transcribe [the Accidental Tech Podcast](https://atp.fm), and [a live search engine of the transcipts are here](https://marcoshuerta.com/dash/atp_search/), powered by this module (specifically `SearchTranscripts`).
 
@@ -8,7 +8,9 @@ This module has two classes:
 
 * `LoadTranscripts`: This creates a sqlite database and [FTS5 virtual table](https://www.sqlite.org/fts5.html) from a folder of transcript files (`.vtt` or `.json` files). It creates longer chunks of text from the short transcript segments in the original file in order to make the text blocks searchable. It preservers the individual transcript segments in a separate database.
 
-* `SearchTranscripts`: This uses the Sqlite database to return a pandas dataframe of the top results for the search query.
+* `SearchTranscripts`: This is a python class that uses the Sqlite database to return a pandas dataframe of the top results for the search query.
+
+Of course, once the sqlite database is created, you can access that database via any sqlite interface you like. (datasette, dbeaver, the command line, etc.) `SearchTranscripts` is designed to be convenient way to access the data from python, using sqlalchemy and pandas. But you could just run `LoadTranscripts`, make the database, and never use `SearchTranscripts.`
 
 
 Usage:
