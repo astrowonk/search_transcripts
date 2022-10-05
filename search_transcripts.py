@@ -19,6 +19,9 @@ class LoadTranscripts():
     """Load a directory of VTT or .json transcripts (from Whisper) into a sqlite database. It also creates an BM25 index.
     
     This creates the data for SearchTranscripts()
+
+    rebuild defaults to False but the key_regex must be consistent between builds or duplicates may be inserted. key_regex processes the file/path name to
+    whatever string will be used in episode_key in the database.
     
     """
     search_docs = None
@@ -107,17 +110,14 @@ class LoadTranscripts():
             for key, val in self.data.items() if key not in existing_records
         }
         print(
-            f"{len(existing_records)} found in existing search_records database. Pruned new records to {len(self.data)}"
+            f"{len(existing_records)} found in existing search_records database using regex for keys {self.key_regex}. Pruned new records to {len(self.data)}"
         )
-
-
 
     def save_data(self):
         """take the list of dictionaries and create the sqlite table and indices."""
 
         assert isinstance(self.conn,
                           Engine), "Connection must be a sqlachemy engine."
-
 
         if not self.data:
             print("No records to write")
@@ -145,7 +145,6 @@ class LoadTranscripts():
 
         df = pd.DataFrame(self.search_docs).drop(
             columns=['end']).reset_index().rename(columns={'index': 'doc_id'})
-        
 
         self.conn.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(doc_id, episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
