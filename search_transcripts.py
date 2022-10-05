@@ -34,7 +34,6 @@ class LoadTranscripts():
                  overlap_length: int = 0,
                  key_regex: str = None,
                  output_prefix: str = '',
-                 con: Engine = None,
                  rebuild=False) -> None:
         """Initalize the class. path will be globbed for .vtt and .json files.
         
@@ -45,11 +44,6 @@ class LoadTranscripts():
         if output_prefix:
             output_prefix = output_prefix + '_'
         self.output_prefix = output_prefix
-        if con:
-            self.conn = con
-            assert isinstance(con, Engine), f"{con} is not a SQLalchemy engine"
-        else:
-            self.conn = create_engine(f'sqlite:///{self.output_prefix}main.db')
 
         if chunk_length:
             assert isinstance(chunk_length,
@@ -102,8 +96,9 @@ class LoadTranscripts():
 
     def clean_data(self):
         existing_records = [
-            x[0] for x in self.conn.execute(
-                "select distinct(episode_key) from search_data;")
+            x[0]
+            for x in create_engine(f'sqlite:///{self.output_prefix}main.db').
+            execute("select distinct(episode_key) from search_data;")
         ]
         self.data = {
             key: val
@@ -115,13 +110,12 @@ class LoadTranscripts():
 
     def save_data(self):
         """take the list of dictionaries and create the sqlite table and indices."""
-
-        assert isinstance(self.conn,
-                          Engine), "Connection must be a sqlachemy engine."
+        self.conn = create_engine(f'sqlite:///{self.output_prefix}main.db')
 
         if not self.data:
             print("No records to write")
             return
+
         print(f"Writing SQL with {self.conn}")
         print("Making table all_segments")
         ## segment data
@@ -138,7 +132,8 @@ class LoadTranscripts():
                       index=False)
 
         self.conn.execute(
-            "CREATE INDEX idx_segments on all_segments(segment,episode_key);")
+            "CREATE INDEX IF NOT EXISTS idx_segments on all_segments(segment,episode_key);"
+        )
 
         ## search chunk data
         print("Making table search_data")
@@ -165,6 +160,10 @@ class LoadTranscripts():
         self.tokenized_docs = []
         self.search_docs = []
 
+        if not self.data:
+            self.search_docs = []
+            return
+
         workers = cpu_count()
         print(f'build search documents with {workers} workers')
 
@@ -172,8 +171,8 @@ class LoadTranscripts():
             out = list(
                 tqdm(executor.map(self.create_rolling_docs, self.data.items()),
                      total=len(self.data)))
-        self.out = out
-        self.search_docs = flatten_list([x[0] for x in self.out])
+
+        self.search_docs = flatten_list([x[0] for x in out])
 
     def create_rolling_docs(self, x):
         """For a given transcript, chunk 30 segments together to make an indexable document."""
