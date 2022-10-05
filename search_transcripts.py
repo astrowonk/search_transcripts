@@ -31,18 +31,23 @@ class LoadTranscripts():
                  overlap_length: int = 0,
                  key_regex: str = None,
                  output_prefix: str = '',
-                 con: Engine = None) -> None:
+                 con: Engine = None,
+                 rebuild=False) -> None:
         """Initalize the class. path will be globbed for .vtt and .json files.
         
         the episode_key will come from the filename unless key_regex is specified to extract an episode number or other identifier.
         
         """
-        if con:
-            self.conn = con
-            assert isinstance(con, Engine), f"{con} is not a SQLalchemy engine"
+        self.rebuild = rebuild
         if output_prefix:
             output_prefix = output_prefix + '_'
         self.output_prefix = output_prefix
+        if con:
+            self.conn = con
+            assert isinstance(con, Engine), f"{con} is not a SQLalchemy engine"
+        else:
+            self.conn = create_engine(f'sqlite:///{self.output_prefix}main.db')
+
         if chunk_length:
             assert isinstance(chunk_length,
                               int), "Chunk length must be an integer."
@@ -54,6 +59,11 @@ class LoadTranscripts():
 
     def process_all(self):
         """build search documents and save the database"""
+        if self.rebuild:
+            print("Rebuild is True, dropping tables for full rebuild.")
+            self.drop_tables()
+        else:
+            self.clean_data()
         self.build_search_documents()
         self.save_data()
 
@@ -65,7 +75,7 @@ class LoadTranscripts():
         if not self.key_regex:
             self.data = {x: json.load(open(x)) for x in tqdm(json_files)}
             self.data.update({x: read_vtt(x) for x in tqdm(vtt_files)})
-        else:  #TODO: need to handle .VTT files sadly.
+        else:
             self.data = {
                 self.process_regex(x): json.load(open(x))
                 for x in tqdm(json_files)
@@ -80,20 +90,40 @@ class LoadTranscripts():
         m = re.search(self.key_regex, x)
         return m.group(1)
 
-    def save_data(self):
-        """take the list of dictionaries and create the sqlite table and indices."""
-        if self.conn is None:
-            self.conn = create_engine(f'sqlite:///{self.output_prefix}main.db')
-        assert isinstance(self.conn,
-                          Engine), "Connection must be a sqlachemy engine."
-        print(f"Writing SQL with {self.conn}")
-
-        print("Making table all_segments")
+    def drop_tables(self):
         self.conn.execute(
             "drop table if exists all_segments;"
         )  #this probably doesn't work on a bunch of other connection types
         # TODO add warning about dropping table
+        self.conn.execute("drop table if exists search_data;")
 
+    def clean_data(self):
+        existing_records = [
+            x[0] for x in self.conn.execute(
+                "select distinct(episode_key) from search_data;")
+        ]
+        self.data = {
+            key: val
+            for key, val in self.data.items() if key not in existing_records
+        }
+        print(
+            f"{len(existing_records)} found in existing search_records database. Pruned new records to {len(self.data)}"
+        )
+
+
+
+    def save_data(self):
+        """take the list of dictionaries and create the sqlite table and indices."""
+
+        assert isinstance(self.conn,
+                          Engine), "Connection must be a sqlachemy engine."
+
+
+        if not self.data:
+            print("No records to write")
+            return
+        print(f"Writing SQL with {self.conn}")
+        print("Making table all_segments")
         ## segment data
         for key in self.data.keys():
             df = pd.json_normalize(
@@ -113,11 +143,12 @@ class LoadTranscripts():
         ## search chunk data
         print("Making table search_data")
 
-        self.conn.execute("drop table if exists search_data;")
         df = pd.DataFrame(self.search_docs).drop(
             columns=['end']).reset_index().rename(columns={'index': 'doc_id'})
+        
+
         self.conn.execute(
-            "CREATE VIRTUAL TABLE search_data USING fts5(doc_id, episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
+            "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(doc_id, episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
         )
         df.to_sql('search_data',
                   con=self.conn,
