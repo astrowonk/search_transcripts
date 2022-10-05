@@ -10,8 +10,7 @@ This module has two classes:
 
 * `SearchTranscripts`: This is a python class that uses the Sqlite database to return a pandas dataframe of the top results for the search query.
 
-Of course, once the sqlite database is created, you can access that database via any sqlite interface you like. (datasette, dbeaver, the command line, etc.) `SearchTranscripts` is designed to be convenient way to access the data from python, using sqlalchemy and pandas. But you could just run `LoadTranscripts`, make the database, and never use `SearchTranscripts.`
-
+Once the sqlite database is created with `LoadTranscripts`, you can access that database via any sqlite interface you like such as [datasette](https://datasette.io), [dbeaver](https://dbeaver.io), the [command line](https://www.sqlite.org/cli.html), [SQL alchemy](https://www.sqlalchemy.org), etc. The `SearchTranscripts` class is meant to be a simple and convenient way to access the data from python, using sqlalchemy and pandas, but it is somewhat limited.
 
 Usage:
 
@@ -24,12 +23,13 @@ l = LoadTranscripts('transcripts') ## will create main.db and bm25.pickle
 
 s = SearchTranscripts()
 
-## uses the bm25 chunked index to score and returns a pandas dataframe of the top scoring transcript sections, across all transcripts.
+## Returns a pandas dataframe of the top scoring transcript sections, across all transcripts.
 
-s.search("starship enterprise") 
+s.search('starship enterprise')
 
-## Uses a bm25 index on the entire transcripts to find the transcripts with the highest score for the search term.
-s.search_full_transcript("starship enterprise)
+##find the exact phrase
+
+s.search('"starship enterprise"')
 
 
 ```
