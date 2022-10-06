@@ -6,6 +6,7 @@ import json
 from tqdm.notebook import tqdm
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from utils import escape_fts
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
@@ -269,15 +270,14 @@ class SearchTranscripts(LoadTranscripts):
             df = pd.read_sql(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit 50;",
                 con=self.conn,
-                params=[self.safe_search(search)])
+                params=[escape_fts(search)])
         else:
             print(episode_range[0], episode_range[1])
             df = pd.read_sql(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit 50;",
                 con=self.conn,
                 params=[
-                    self.safe_search(search), episode_range[0],
-                    episode_range[1]
+                    escape_fts(search), episode_range[0], episode_range[1]
                 ])
         return df
 
