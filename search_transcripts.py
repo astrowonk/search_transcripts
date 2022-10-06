@@ -4,8 +4,7 @@ import pandas as pd
 import glob
 import json
 from tqdm.notebook import tqdm
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+import sqlite3
 from utils import escape_fts
 
 from concurrent.futures import ProcessPoolExecutor
@@ -57,12 +56,13 @@ class LoadTranscripts():
 
     def process_all(self):
         """build search documents and save the database"""
+
+        self.build_search_documents()
         if self.rebuild:
             print("Rebuild is True, dropping tables for full rebuild.")
             self.drop_tables()
         else:
             self.clean_data()
-        self.build_search_documents()
         self.save_data()
 
     def load_all_files(self, path):
@@ -89,17 +89,18 @@ class LoadTranscripts():
         return m.group(1)
 
     def drop_tables(self):
-        self.conn.execute(
-            "drop table if exists all_segments;"
-        )  #this probably doesn't work on a bunch of other connection types
-        # TODO add warning about dropping table
-        self.conn.execute("drop table if exists search_data;")
+        with sqlite3.connect(f'{self.output_prefix}main.db') as conn:
+            conn.execute(
+                "drop table if exists all_segments;"
+            )  #this probably doesn't work on a bunch of other connection types
+            # TODO add warning about dropping table
+            conn.execute("drop table if exists search_data;")
 
     def clean_data(self):
         existing_records = [
             x[0]
-            for x in create_engine(f'sqlite:///{self.output_prefix}main.db').
-            execute("select distinct(episode_key) from search_data;")
+            for x in sqlite3.connect(f'{self.output_prefix}main.db').execute(
+                "select distinct(episode_key) from search_data;")
         ]
         self.data = {
             key: val
@@ -111,7 +112,7 @@ class LoadTranscripts():
 
     def save_data(self):
         """take the list of dictionaries and create the sqlite table and indices."""
-        self.conn = create_engine(f'sqlite:///{self.output_prefix}main.db')
+        self.conn = sqlite3.connect(f'{self.output_prefix}main.db')
 
         if not self.data:
             print("No records to write")
@@ -139,8 +140,7 @@ class LoadTranscripts():
         ## search chunk data
         print("Making table search_data")
 
-        df = pd.DataFrame(self.search_docs).drop(
-            columns=['end'])
+        df = pd.DataFrame(self.search_docs).drop(columns=['end'])
 
         self.conn.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
@@ -218,7 +218,7 @@ class LoadTranscripts():
 
 
 class SearchTranscripts(LoadTranscripts):
-    def __init__(self, input_prefix='', con=None):
+    def __init__(self, input_prefix=''):
         """Load the index and connect database"""
 
         if input_prefix:
@@ -227,11 +227,9 @@ class SearchTranscripts(LoadTranscripts):
         #     self.bm25 = pickle.load(f)
         # with open(f'{input_prefix}bm25_full.pickle', 'rb') as f:
         #     self.bm25_full_transcript = pickle.load(f)
-        if isinstance(con, Engine):
-            self.conn = con
-        else:
-            print(f"Using SQL Lite with {input_prefix}main.db ")
-            self.conn = create_engine(f'sqlite:///{input_prefix}main.db')
+
+        print(f"Using SQL Lite with {input_prefix}main.db ")
+        self.conn = sqlite3.connect(f'{input_prefix}main.db')
 
     @staticmethod
     def handle_apostrophe(x):
