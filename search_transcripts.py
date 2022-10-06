@@ -259,20 +259,24 @@ class SearchTranscripts(LoadTranscripts):
             return ' '.join(
                 [self.handle_apostrophe(x) for x in search.split(' ')])
 
-    def search_bm25_chunk(self, search, episode_range=None):
+    def search_bm25_chunk(self,
+                          search,
+                          episode_range=None,
+                          limit=50,
+                          offset=0):
         """Use the BM 25 index to retrieve the top results from sql."""
         #print(','.join(list(top_indices)))
 
         print(self.safe_search(search))
         if not episode_range:
             df = pd.read_sql(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit 50;",
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit {limit} offset {offset};",
                 con=self.conn,
                 params=[escape_fts(search)])
         else:
             print(episode_range[0], episode_range[1])
             df = pd.read_sql(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit 50;",
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit limit {limit} offset {offset};",
                 con=self.conn,
                 params=[
                     escape_fts(search), episode_range[0], episode_range[1]
