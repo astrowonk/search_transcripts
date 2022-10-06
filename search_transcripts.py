@@ -140,10 +140,10 @@ class LoadTranscripts():
         print("Making table search_data")
 
         df = pd.DataFrame(self.search_docs).drop(
-            columns=['end']).reset_index().rename(columns={'index': 'doc_id'})
+            columns=['end'])
 
         self.conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(doc_id, episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
+            "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
         )
         df.to_sql('search_data',
                   con=self.conn,
