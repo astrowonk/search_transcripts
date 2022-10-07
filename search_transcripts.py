@@ -90,13 +90,11 @@ class LoadTranscripts():
 
     def drop_tables(self):
         with sqlite3.connect(f'{self.output_prefix}main.db') as conn:
-            conn.execute(
-                "drop table if exists all_segments;"
-            )  #this probably doesn't work on a bunch of other connection types
-            # TODO add warning about dropping table
+            conn.execute("drop table if exists all_segments;")
             conn.execute("drop table if exists search_data;")
 
     def clean_data(self):
+        """Check for existing keys and skip insertion and processing of them"""
         existing_records = [
             x[0]
             for x in sqlite3.connect(f'{self.output_prefix}main.db').execute(
@@ -249,9 +247,7 @@ class SearchTranscripts(LoadTranscripts):
                           episode_range=None,
                           limit=50,
                           offset=0):
-        """Use the BM 25 index to retrieve the top results from sql."""
-        #print(','.join(list(top_indices)))
-
+        """Use the BM25 ondering to retrieve the top results from sql."""
         print(escape_fts(search))
         if not episode_range:
             df = pd.read_sql(
@@ -276,6 +272,7 @@ class SearchTranscripts(LoadTranscripts):
             con=self.conn)
 
     def search(self, search):
+        """Search and return results wrapping exact matches in ** for markdown"""
         base_res = self.search_bm25_chunk(search)
         search = search.lower().strip('"')
         base_res['exact_match'] = base_res['text'].apply(
@@ -288,6 +285,7 @@ class SearchTranscripts(LoadTranscripts):
 
 
 def process_bold(x, search):
+    """Wrap exact matches with double asterisks for markdown"""
     idx = x.lower().find(search.lower())
     if idx != -1:
         return ''.join([
