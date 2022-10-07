@@ -224,45 +224,12 @@ class SearchTranscripts(LoadTranscripts):
         if input_prefix:
             input_prefix = input_prefix + '_'
         self.input_prefix = input_prefix
-        # with open(f'{input_prefix}bm25.pickle', 'rb') as f:
-        #     self.bm25 = pickle.load(f)
-        # with open(f'{input_prefix}bm25_full.pickle', 'rb') as f:
-        #     self.bm25_full_transcript = pickle.load(f)
-
         print(f"Using SQL Lite with {input_prefix}main.db ")
 
     @property
     def conn(self):
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
-            return conn
-
-    @staticmethod
-    def handle_apostrophe(x):
-        """Handle apostrophes inside Sqlite FTS5"""
-        if "'" in x:
-            fixed = re.sub("'", "''", x)
-            return '"' + fixed + '"'
-        return x
-
-    @staticmethod
-    def handle_apostrophe_exact(x):
-        """Handle apostrophes inside Sqlite FTS5"""
-        if "'" in x:
-            fixed = re.sub("'", "''", x)
-            return fixed
-        return x
-
-    def safe_search(self, search):
-        """Prepare any query with an apostrophe for FTS5"""
-        if "'" not in search:
-            return search
-        if search.startswith('"') and search.endswith('"'):
-            print("exact")
-            return ' '.join(
-                [self.handle_apostrophe_exact(x) for x in search.split(' ')])
-        else:
-            return ' '.join(
-                [self.handle_apostrophe(x) for x in search.split(' ')])
+            return conn  #kind of suprised this works
 
     def get_num_search_results(self, search, episode_range=None):
         if not episode_range:
@@ -285,7 +252,7 @@ class SearchTranscripts(LoadTranscripts):
         """Use the BM 25 index to retrieve the top results from sql."""
         #print(','.join(list(top_indices)))
 
-        print(self.safe_search(search))
+        print(escape_fts(search))
         if not episode_range:
             df = pd.read_sql(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit ? offset ?;",

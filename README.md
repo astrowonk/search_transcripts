@@ -10,7 +10,7 @@ This module has two classes:
 
 * `SearchTranscripts`: This is a python class that uses the Sqlite database to return a pandas dataframe of the top results for the search query.
 
-Once the sqlite database is created with `LoadTranscripts`, you can access that database via any sqlite interface you like such as [datasette](https://datasette.io), [dbeaver](https://dbeaver.io), the [command line](https://www.sqlite.org/cli.html), [SQL alchemy](https://www.sqlalchemy.org), etc. The `SearchTranscripts` class is meant to be a simple and convenient way to access the data from python, using sqlalchemy and pandas, but it is somewhat limited.
+Once the sqlite database is created with `LoadTranscripts`, you can access that database via any sqlite interface you like such as [datasette](https://datasette.io), [dbeaver](https://dbeaver.io), the [command line](https://www.sqlite.org/cli.html), [SQL alchemy](https://www.sqlalchemy.org), etc. The `SearchTranscripts` class is meant to be a simple and convenient way to access the data from python, using the built-in sqlite3 module and pandas, but it is somewhat limited.
 
 Usage:
 
