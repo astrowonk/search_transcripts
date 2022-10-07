@@ -223,13 +223,18 @@ class SearchTranscripts(LoadTranscripts):
 
         if input_prefix:
             input_prefix = input_prefix + '_'
+        self.input_prefix = input_prefix
         # with open(f'{input_prefix}bm25.pickle', 'rb') as f:
         #     self.bm25 = pickle.load(f)
         # with open(f'{input_prefix}bm25_full.pickle', 'rb') as f:
         #     self.bm25_full_transcript = pickle.load(f)
 
         print(f"Using SQL Lite with {input_prefix}main.db ")
-        self.conn = sqlite3.connect(f'{input_prefix}main.db')
+
+    @property
+    def conn(self):
+        with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+            return conn
 
     @staticmethod
     def handle_apostrophe(x):
@@ -259,6 +264,19 @@ class SearchTranscripts(LoadTranscripts):
             return ' '.join(
                 [self.handle_apostrophe(x) for x in search.split(' ')])
 
+    def get_num_search_results(self, search, episode_range=None):
+        if not episode_range:
+            return next(
+                self.conn.execute(
+                    "select count(rowid) from search_data where text match ?;",
+                    [escape_fts(search)]))[0]
+        else:
+            return next(
+                self.conn.execute(
+                    "select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
+                    [escape_fts(search), episode_range[0], episode_range[1]
+                     ]))[0]
+
     def search_bm25_chunk(self,
                           search,
                           episode_range=None,
@@ -270,16 +288,17 @@ class SearchTranscripts(LoadTranscripts):
         print(self.safe_search(search))
         if not episode_range:
             df = pd.read_sql(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit {limit} offset {offset};",
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit ? offset ?;",
                 con=self.conn,
-                params=[escape_fts(search)])
+                params=[escape_fts(search), limit, offset])
         else:
             print(episode_range[0], episode_range[1])
             df = pd.read_sql(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit limit {limit} offset {offset};",
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit ? offset ?;",
                 con=self.conn,
                 params=[
-                    escape_fts(search), episode_range[0], episode_range[1]
+                    escape_fts(search), episode_range[0], episode_range[1],
+                    limit, offset
                 ])
         return df
 
