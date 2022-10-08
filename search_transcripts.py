@@ -56,12 +56,13 @@ class LoadTranscripts():
     def process_all(self):
         """build search documents and save the database"""
 
-        self.build_search_documents()
         if self.rebuild:
             print("Rebuild is True, dropping tables for full rebuild.")
             self.drop_tables()
         else:
+            print("cleaning data")
             self.clean_data()
+        self.build_search_documents()
         self.save_data()
 
     def load_all_files(self, path):
