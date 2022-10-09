@@ -247,7 +247,7 @@ class SearchTranscripts(LoadTranscripts):
                           episode_range=None,
                           limit=50,
                           offset=0):
-        """Use the BM25 ondering to retrieve the top results from sql."""
+        """Use the BM25 ordering to retrieve the top results from sql. limit and offset keyword argument provide for pagination."""
         print(escape_fts(search))
         if not episode_range:
             df = pd.read_sql(
@@ -268,12 +268,12 @@ class SearchTranscripts(LoadTranscripts):
     def get_segment_detail(self, key, start, end):
         """Get the text of the appropriate segments from sql. a future version may create time stamp specicifc links for each section."""
         return pd.read_sql(
-            f"SELECT * from all_segments where episode_key = '{key}' and segment BETWEEN {start} and {end}",
-            con=self.conn)
+            f"SELECT * from all_segments where episode_key = ? and segment BETWEEN ? and ?",
+            con=self.conn,params=[key,start,end])
 
-    def search(self, search):
+    def search(self, search, **kwargs):
         """Search and return results wrapping exact matches in ** for markdown"""
-        base_res = self.search_bm25_chunk(search)
+        base_res = self.search_bm25_chunk(search, **kwargs)
         search = search.lower().strip('"')
         base_res['exact_match'] = base_res['text'].apply(
             lambda x: search in x.lower()).astype(int)
