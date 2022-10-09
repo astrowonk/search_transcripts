@@ -14,6 +14,13 @@ def flatten_list(list_of_lists):
     return [y for x in list_of_lists for y in x]
 
 
+def my_escape_fts(search):
+    if '"' in search or "'" in search:
+        return escape_fts(search)
+    else:
+        return search
+
+
 class LoadTranscripts():
     """Load a directory of VTT or .json transcripts (from Whisper) into a sqlite database. It also creates an BM25 index.
     
@@ -234,13 +241,15 @@ class SearchTranscripts(LoadTranscripts):
             return next(
                 self.conn.execute(
                     "select count(rowid) from search_data where text match ?;",
-                    [escape_fts(search)]))[0]
+                    [my_escape_fts(search)]))[0]
         else:
             return next(
                 self.conn.execute(
                     "select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
-                    [escape_fts(search), episode_range[0], episode_range[1]
-                     ]))[0]
+                    [
+                        my_escape_fts(search), episode_range[0],
+                        episode_range[1]
+                    ]))[0]
 
     def search_bm25_chunk(self,
                           search,
@@ -248,19 +257,19 @@ class SearchTranscripts(LoadTranscripts):
                           limit=50,
                           offset=0):
         """Use the BM25 ordering to retrieve the top results from sql. limit and offset keyword argument provide for pagination."""
-        print(escape_fts(search))
+        print(my_escape_fts(search))
         if not episode_range:
             df = pd.read_sql(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit ? offset ?;",
                 con=self.conn,
-                params=[escape_fts(search), limit, offset])
+                params=[my_escape_fts(search), limit, offset])
         else:
             print(episode_range[0], episode_range[1])
             df = pd.read_sql(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit ? offset ?;",
                 con=self.conn,
                 params=[
-                    escape_fts(search), episode_range[0], episode_range[1],
+                    my_escape_fts(search), episode_range[0], episode_range[1],
                     limit, offset
                 ])
         return df
@@ -269,7 +278,8 @@ class SearchTranscripts(LoadTranscripts):
         """Get the text of the appropriate segments from sql. a future version may create time stamp specicifc links for each section."""
         return pd.read_sql(
             f"SELECT * from all_segments where episode_key = ? and segment BETWEEN ? and ?",
-            con=self.conn,params=[key,start,end])
+            con=self.conn,
+            params=[key, start, end])
 
     def search(self, search, **kwargs):
         """Search and return results wrapping exact matches in ** for markdown"""
