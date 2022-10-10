@@ -5,6 +5,7 @@ import json
 from tqdm.notebook import tqdm
 import sqlite3
 from utils import escape_fts
+from collections import deque
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
@@ -102,11 +103,13 @@ class LoadTranscripts():
 
     def clean_data(self):
         """Check for existing keys and skip insertion and processing of them"""
-        existing_records = [
-            x[0]
-            for x in sqlite3.connect(f'{self.output_prefix}main.db').execute(
-                "select distinct(episode_key) from search_data;")
-        ]
+        try:
+            existing_records = [
+                x[0] for x in sqlite3.connect(f'{self.output_prefix}main.db').
+                execute("select distinct(episode_key) from search_data;")
+            ]
+        except sqlite3.OperationalError:
+            existing_records = []
         self.data = {
             key: val
             for key, val in self.data.items() if key not in existing_records
@@ -145,10 +148,12 @@ class LoadTranscripts():
         ## search chunk data
         print("Making table search_data")
 
-        df = pd.DataFrame(self.search_docs).drop(columns=['end'])
+        df = pd.DataFrame(self.search_docs).drop(columns=['end_ts'],
+                                                 errors='ignore')
+        print(df.columns)
 
         self.conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(episode_key, text,start, start_segment, end_segment, tokenize = 'porter ascii');"
+            "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(episode_key, text,start,end,start_ts, start_segment, end_segment, tokenize = 'porter ascii');"
         )
         df.to_sql('search_data',
                   con=self.conn,
@@ -178,40 +183,40 @@ class LoadTranscripts():
                 tqdm(executor.map(self.create_rolling_docs, self.data.items()),
                      total=len(self.data)))
 
-        self.search_docs = flatten_list([x[0] for x in out])
+        self.search_docs = flatten_list(out)
 
     def create_rolling_docs(self, x):
         """For a given transcript, chunk 30 segments together to make an indexable document."""
         i = 0
         all_chunk = []
         key, data = x
-        while i < (data_length := len(data)):
-            last_index = min(i + self.chunk_length, data_length - 1)
-            chunk = data[i:last_index + 1]
+        data = deque(data)
+        while data:
+            chunk = []
+            chunk_word_length = 0
+            while data and chunk_word_length < 300:
+                bit = data.popleft()
+                i += 1
+                chunk.append(bit)
+                chunk_word_length += len(bit['text'].split(' '))
 
             start_time = chunk[0]['start']
+
             full_text = ' '.join([x['text'] for x in chunk])
 
             #url = self.make_url(start_time)
 
             all_chunk.append({
-                'episode_key':
-                key,
-                'text':
-                full_text,
-                'start':
-                self.make_timestamp(start_time),
-                'end':
-                self.make_timestamp(chunk[-1]['end']),
-                'start_segment':
-                i,
-                'end_segment':
-                min(i + self.chunk_length, data_length)
+                'episode_key': key,
+                'text': full_text,
+                'start': start_time,
+                'end': chunk[-1]['end'],
+                'start_ts': self.make_timestamp(start_time),
+                'end_ts': self.make_timestamp(chunk[-1]['end']),
+                'start_segment': i,
+                'end_segment': (i + len(chunk))
             })
-            i = i + self.chunk_length + self.overlap_length
-        search_docs = all_chunk
-        tokenized_docs = None
-        return search_docs, tokenized_docs
+        return all_chunk
 
     @staticmethod
     def make_timestamp(x):
