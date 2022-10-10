@@ -32,13 +32,11 @@ class LoadTranscripts():
     
     """
     search_docs = None
-    chunk_length = 30
+    word_limit = 300
     conn = None
 
     def __init__(self,
                  path: str,
-                 chunk_length: int = 25,
-                 overlap_length: int = 0,
                  key_regex: str = None,
                  output_prefix: str = '',
                  rebuild=False) -> None:
@@ -51,12 +49,6 @@ class LoadTranscripts():
         if output_prefix:
             output_prefix = output_prefix + '_'
         self.output_prefix = output_prefix
-
-        if chunk_length:
-            assert isinstance(chunk_length,
-                              int), "Chunk length must be an integer."
-            self.chunk_length = chunk_length
-        self.overlap_length = overlap_length
         self.key_regex = key_regex
         self.load_all_files(path)
         self.stop_words = []
@@ -194,7 +186,7 @@ class LoadTranscripts():
         while data:
             chunk = []
             chunk_word_length = 0
-            while data and chunk_word_length < 300:
+            while data and chunk_word_length < self.word_limit:
                 bit = data.popleft()
                 bit['i'] = i
                 i += 1
@@ -217,7 +209,8 @@ class LoadTranscripts():
                 'start_ts': self.make_timestamp(start_time),
                 'end_ts': self.make_timestamp(chunk[-1]['end']),
                 'start_segment': start_segment,
-                'end_segment': end_segment})
+                'end_segment': end_segment
+            })
         return all_chunk
 
     @staticmethod
