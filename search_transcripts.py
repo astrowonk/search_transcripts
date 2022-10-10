@@ -196,9 +196,12 @@ class LoadTranscripts():
             chunk_word_length = 0
             while data and chunk_word_length < 300:
                 bit = data.popleft()
+                bit['i'] = i
                 i += 1
                 chunk.append(bit)
                 chunk_word_length += len(bit['text'].split(' '))
+            start_segment = chunk[0]['i']
+            end_segment = chunk[-1]['i']
 
             start_time = chunk[0]['start']
 
@@ -213,9 +216,8 @@ class LoadTranscripts():
                 'end': chunk[-1]['end'],
                 'start_ts': self.make_timestamp(start_time),
                 'end_ts': self.make_timestamp(chunk[-1]['end']),
-                'start_segment': i,
-                'end_segment': (i + len(chunk))
-            })
+                'start_segment': start_segment,
+                'end_segment': end_segment})
         return all_chunk
 
     @staticmethod
