@@ -152,11 +152,12 @@ class LoadTranscripts():
                   if_exists='append',
                   index=False)
 
-        #print(f'Saving {self.output_prefix}bm25.pickle')
-        #with open(f'{self.output_prefix}bm25.pickle', 'wb') as f:
-        #    pickle.dump(self.bm25, f)
+        print("Optimizing...")
+        self.conn.execute(
+            "insert into search_data(search_data) values ('optimize');")
 
-        #self.save_full_transcript_data()
+        print("Running VACUUM")
+        self.conn.execute("VACUUM;")
 
     def build_search_documents(self):
         """tokenize and segment each transcript."""
