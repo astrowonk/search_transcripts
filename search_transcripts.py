@@ -39,12 +39,17 @@ class LoadTranscripts():
                  path: str,
                  key_regex: str = None,
                  output_prefix: str = '',
-                 rebuild=False) -> None:
+                 rebuild=False,
+                 sub_dict=None) -> None:
         """Initalize the class. path will be globbed for .vtt and .json files.
         
         the episode_key will come from the filename unless key_regex is specified to extract an episode number or other identifier.
         
         """
+        if sub_dict:
+            self.sub_dict = sub_dict
+        else:
+            self.sub_dict = {}
         self.rebuild = rebuild
         if output_prefix:
             output_prefix = output_prefix + '_'
@@ -56,6 +61,7 @@ class LoadTranscripts():
     def process_all(self):
         """build search documents and save the database"""
 
+        self.process_substitutions()
         if self.rebuild:
             print("Rebuild is True, dropping tables for full rebuild.")
             self.drop_tables()
@@ -156,9 +162,6 @@ class LoadTranscripts():
         self.conn.execute(
             "insert into search_data(search_data) values ('optimize');")
 
-        print("Running VACUUM")
-        self.conn.execute("VACUUM;")
-
     def build_search_documents(self):
         """tokenize and segment each transcript."""
         self.tokenized_docs = []
@@ -177,6 +180,15 @@ class LoadTranscripts():
                      total=len(self.data)))
 
         self.search_docs = flatten_list(out)
+
+    def process_substitutions(self):
+        """Consistently mistranscribed words or regex patterns are replaced segment by segment."""
+        if not self.sub_dict:
+            return
+        for key, val in tqdm(self.data.items()):
+            for item in val:
+                for word, replacement in self.sub_dict.items():
+                    item['text'] = re.sub(word, replacement, item['text'])
 
     def create_rolling_docs(self, x):
         """For a given transcript, chunk 30 segments together to make an indexable document."""
