@@ -61,13 +61,14 @@ class LoadTranscripts():
     def process_all(self):
         """build search documents and save the database"""
 
-        self.process_substitutions()
         if self.rebuild:
             print("Rebuild is True, dropping tables for full rebuild.")
             self.drop_tables()
         else:
             print("cleaning data")
             self.clean_data()
+        self.process_substitutions()
+
         self.build_search_documents()
         self.save_data()
 
@@ -161,6 +162,7 @@ class LoadTranscripts():
         print("Optimizing...")
         self.conn.execute(
             "insert into search_data(search_data) values ('optimize');")
+        self.conn.close()
 
     def build_search_documents(self):
         """tokenize and segment each transcript."""
