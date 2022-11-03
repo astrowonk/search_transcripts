@@ -2,7 +2,7 @@
 
 This code was designed to make a large number of OpenAI's whisper transcripts easily searchable. So one can find a particular passage or term occurs and at what time in the transcript. However, it should work with any folder of .VTT files: non just OpenAI transcripts of podcasts.
 
-I used Whisper OpenAI to transcribe [the Accidental Tech Podcast](https://atp.fm), and [a live search engine of the transcipts are here](https://marcoshuerta.com/dash/atp_search/), powered by this module (specifically `SearchTranscripts`).
+I used Whisper OpenAI to transcribe [the Accidental Tech Podcast](https://atp.fm), and [I deployed a live search engine web site front end here](https://marcoshuerta.com/dash/atp_search/), powered by this module (specifically `SearchTranscripts`).
 
 This module has two classes:
 
