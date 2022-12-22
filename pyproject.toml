@@ -54,6 +54,14 @@ omit = [
   "search_transcripts/__about__.py",
 ]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["search_transcripts.py", "utils.py"]
+
 [tool.coverage.report]
 exclude_lines = [
   "no cov",
