@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "search-transcripts"
+version = "0.1"
 description = 'Convert a folder of transcripts to a searchable database'
 readme = "README.md"
 requires-python = ">=3.7"
@@ -26,15 +27,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = ["pandas","numpy","nltk"]
-dynamic = ["version"]
 
 [project.urls]
 Documentation = "https://github.com/astrowonk/search_transcripts/#readme"
 Issues = "https://github.com/astrowonk/search_transcripts/issues"
 Source = "https://github.com/astrowonk/search_transcripts"
 
-[tool.hatch.version]
-path = "search_transcripts/__about__.py"
+
 
 [tool.hatch.envs.default]
 dependencies = [
