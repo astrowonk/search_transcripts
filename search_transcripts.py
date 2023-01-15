@@ -238,6 +238,7 @@ class LoadTranscripts():
 
 
 class SearchTranscripts(LoadTranscripts):
+
     def __init__(self, input_prefix=''):
         """Load the index and connect database"""
 
@@ -270,18 +271,25 @@ class SearchTranscripts(LoadTranscripts):
                           search,
                           episode_range=None,
                           limit=50,
-                          offset=0):
+                          offset=0,
+                          sort_by='score'):
         """Use the BM25 ordering to retrieve the top results from sql. limit and offset keyword argument provide for pagination."""
         print(my_escape_fts(search))
+        if sort_by == 'score':
+            sort_code = 'bm25(search_data)'
+        elif sort_by == 'episode_key_asc':
+            sort_code = 'cast(episode_key as integer) ASC'
+        elif sort_by == 'episode_key_desc':
+            sort_code = 'cast(episode_key as integer) DESC'
         if not episode_range:
             df = pd.read_sql(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by bm25(search_data) limit ? offset ?;",
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by {sort_code} limit ? offset ?;",
                 con=self.conn,
                 params=[my_escape_fts(search), limit, offset])
         else:
             print(episode_range[0], episode_range[1])
             df = pd.read_sql(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by bm25(search_data) limit ? offset ?;",
+                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by {sort_code} limit ? offset ?;",
                 con=self.conn,
                 params=[
                     my_escape_fts(search), episode_range[0], episode_range[1],
