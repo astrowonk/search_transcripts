@@ -278,9 +278,9 @@ class SearchTranscripts(LoadTranscripts):
         if sort_by == 'score':
             sort_code = 'bm25(search_data)'
         elif sort_by == 'episode_key_asc':
-            sort_code = 'cast(episode_key as integer) ASC'
+            sort_code = 'cast(episode_key as integer) ASC, bm25(search_data)'
         elif sort_by == 'episode_key_desc':
-            sort_code = 'cast(episode_key as integer) DESC'
+            sort_code = 'cast(episode_key as integer) DESC, bm25(search_data)'
         if not episode_range:
             #not thrilled about the use of an fstring but it can only be one of the three optinos above, not user input.
             df = pd.read_sql(
