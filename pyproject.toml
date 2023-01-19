@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["pandas","numpy","nltk"]
+dependencies = ["pandas","numpy"]
 
 [project.urls]
 Documentation = "https://github.com/astrowonk/search_transcripts/#readme"
