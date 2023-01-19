@@ -193,7 +193,7 @@ class LoadTranscripts():
                     item['text'] = re.sub(word, replacement, item['text'])
 
     def create_rolling_docs(self, x):
-        """For a given transcript, chunk 30 segments together to make an indexable document."""
+        """For a given transcript, chunk 300 words together to make an indexable document."""
         i = 0
         all_chunk = []
         key, data = x
