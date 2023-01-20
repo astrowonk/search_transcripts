@@ -17,7 +17,7 @@ def flatten_list(list_of_lists):
 
 def my_escape_fts(search):
     search = search.replace("‘", "'").replace("’", "'")
-    search = search.replace('“', '"').search('”', '"')
+    search = search.replace('“', '"').replace('”', '"')
     if '"' in search or "'" in search:
         return escape_fts(search)
     else:
