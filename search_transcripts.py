@@ -42,7 +42,8 @@ class LoadTranscripts():
                  key_regex: str = None,
                  output_prefix: str = '',
                  rebuild=False,
-                 sub_dict=None) -> None:
+                 sub_dict=None,
+                 make_key_integer=False) -> None:
         """Initalize the class. path will be globbed for .vtt and .json files.
         
         the episode_key will come from the filename unless key_regex is specified to extract an episode number or other identifier.
@@ -57,6 +58,7 @@ class LoadTranscripts():
             output_prefix = output_prefix + '_'
         self.output_prefix = output_prefix
         self.key_regex = key_regex
+        self.make_key_integer = make_key_integer
         self.load_all_files(path)
         self.stop_words = []
 
@@ -95,6 +97,8 @@ class LoadTranscripts():
         """turn the file names into whatever the regex finds.  Regex should have a () group."""
         print(x)
         m = re.search(self.key_regex, x)
+        if self.make_key_integer:
+            return int(m.group(1))
         return m.group(1)
 
     def drop_tables(self):
