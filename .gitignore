@@ -4,3 +4,5 @@
 *.ipynb
 __pycache__/
 *.mp3
+atp/
+recdiff_transcripts/
