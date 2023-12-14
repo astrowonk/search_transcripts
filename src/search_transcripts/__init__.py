@@ -4,7 +4,7 @@ import glob
 import json
 from tqdm.notebook import tqdm
 import sqlite3
-from utils import escape_fts
+from .utils import escape_fts
 from collections import deque
 
 from concurrent.futures import ProcessPoolExecutor
