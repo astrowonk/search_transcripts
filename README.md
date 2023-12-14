@@ -12,6 +12,15 @@ This module has two classes:
 
 Once the sqlite database is created with `LoadTranscripts`, you can access that database via any sqlite interface you like such as [datasette](https://datasette.io), [dbeaver](https://dbeaver.io), the [command line](https://www.sqlite.org/cli.html), [SQL alchemy](https://www.sqlalchemy.org), etc. The `SearchTranscripts` class is meant to be a simple and convenient way to access the data from python, using the built-in sqlite3 module and pandas, but it is somewhat limited.
 
+Intallation:
+
+Clone and cd into the repo's main directory, then run:
+
+```
+pip install .
+```
+
+
 Usage:
 
 ```{python}
