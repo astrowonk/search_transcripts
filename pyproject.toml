@@ -6,15 +6,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "search-transcripts"
-version = "0.1"
+version = "0.11"
 description = 'Convert a folder of transcripts to a searchable database'
 readme = "README.md"
 requires-python = ">=3.7"
 license = "MIT"
 keywords = []
-authors = [
-  { name = "Marcos Huerta", email = "marcos@marcoshuerta.com" },
-]
+authors = [{ name = "Marcos Huerta", email = "marcos@marcoshuerta.com" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -26,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["pandas","numpy"]
+dependencies = ["pandas", "numpy"]
 
 [project.urls]
 Documentation = "https://github.com/astrowonk/search_transcripts/#readme"
@@ -34,12 +32,8 @@ Issues = "https://github.com/astrowonk/search_transcripts/issues"
 Source = "https://github.com/astrowonk/search_transcripts"
 
 
-
 [tool.hatch.envs.default]
-dependencies = [
-  "pytest",
-  "pytest-cov",
-]
+dependencies = ["pytest", "pytest-cov"]
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=search_transcripts --cov=tests"
 no-cov = "cov --no-cov"
@@ -47,24 +41,11 @@ no-cov = "cov --no-cov"
 [[tool.hatch.envs.test.matrix]]
 python = ["37", "38", "39", "310", "311"]
 
-[tool.coverage.run]
-branch = true
-parallel = true
-omit = [
-  "search_transcripts/__about__.py",
-]
-
 [tool.hatch.build.targets.sdist]
-exclude = [
-  "/.github",
-]
+exclude = ["/.github"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["search_transcripts.py", "utils.py"]
+packages = ["src/search_transcripts"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
