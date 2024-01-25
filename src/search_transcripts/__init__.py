@@ -243,7 +243,7 @@ class LoadTranscripts():
         return f"{process_hour(hours)}{minutes:02}:{seconds:05.2f}"
 
 
-class SearchTranscripts(LoadTranscripts):
+class SearchTranscripts:
 
     def __init__(self, input_prefix=''):
         """Load the index and connect database"""
@@ -253,25 +253,34 @@ class SearchTranscripts(LoadTranscripts):
         self.input_prefix = input_prefix
         print(f"Using SQL Lite with {input_prefix}main.db ")
 
-    @property
-    def conn(self):
+    def run_sql(self, query, params=None):
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
-            return conn  #kind of suprised this works
+            if params:
+                return conn.execute(query, params)
+            else:
+                return conn.execute(query)
+
+    def sql_frame(self, query, params=None):
+        with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+            return pd.read_sql(query, params=params, con=conn)
 
     def get_num_search_results(self, search, episode_range=None):
-        if not episode_range:
-            return next(
-                self.conn.execute(
-                    "select count(rowid) from search_data where text match ?;",
-                    [my_escape_fts(search)]))[0]
-        else:
-            return next(
-                self.conn.execute(
-                    "select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
-                    [
-                        my_escape_fts(search), episode_range[0],
-                        episode_range[1]
-                    ]))[0]
+        with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+
+            if not episode_range:
+
+                return next(
+                    conn.execute(
+                        "select count(rowid) from search_data where text match ?;",
+                        [my_escape_fts(search)]))[0]
+            else:
+                return next(
+                    conn.execute(
+                        "select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
+                        [
+                            my_escape_fts(search), episode_range[0],
+                            episode_range[1]
+                        ]))[0]
 
     def search_bm25_chunk(self,
                           search,
@@ -289,15 +298,13 @@ class SearchTranscripts(LoadTranscripts):
             sort_code = 'cast(episode_key as integer) DESC, bm25(search_data)'
         if not episode_range:
             #not thrilled about the use of an fstring but it can only be one of the three optinos above, not user input.
-            df = pd.read_sql(
+            df = self.sql_frame(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? order by {sort_code} limit ? offset ?;",
-                con=self.conn,
                 params=[my_escape_fts(search), limit, offset])
         else:
             print(episode_range[0], episode_range[1])
-            df = pd.read_sql(
+            df = self.sql_frame(
                 f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by {sort_code} limit ? offset ?;",
-                con=self.conn,
                 params=[
                     my_escape_fts(search), episode_range[0], episode_range[1],
                     limit, offset
@@ -306,9 +313,8 @@ class SearchTranscripts(LoadTranscripts):
 
     def get_segment_detail(self, key, start, end):
         """Get the text of the appropriate segments from sql. a future version may create time stamp specicifc links for each section."""
-        return pd.read_sql(
+        return self.sql_frame(
             f"SELECT * from all_segments where episode_key = ? and segment BETWEEN ? and ?",
-            con=self.conn,
             params=[key, start, end])
 
     def search(self, search, **kwargs):
