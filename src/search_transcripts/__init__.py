@@ -6,6 +6,8 @@ from tqdm.notebook import tqdm
 import sqlite3
 from .utils import escape_fts
 from collections import deque
+import llama_cpp
+import duckdb
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
@@ -253,7 +255,35 @@ class SearchTranscripts:
         self.input_prefix = input_prefix
         print(f"Using SQL Lite with {input_prefix}main.db ")
 
-    def run_sql(self, query, params=None):
+        self.model = llama_cpp.Llama(model_path='../pbi/ggml-model-f16.gguf',
+                                     embedding=True,
+                                     verbose=False)
+
+    def new_search(
+        self,
+        search,
+        episode_range=None,
+        limit=50,
+        offset=0,
+    ):
+        with duckdb.connect('vectors.db') as con:
+            with sqlite3.connect(f'{self.input_prefix}main.db') as sqlite_con:
+                res = pd.read_sql(
+                    f"select bm25(search_data) as score, *,rowid from search_data where text MATCH ? order by score limit 500",
+                    params=(search, ),
+                    con=sqlite_con)
+                #print(res['rowid'])
+                id_list = tuple(res['rowid'].tolist())
+                arr = self.model.create_embedding(
+                    search)['data'][0]['embedding']
+                new_res = con.sql(
+                    f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as similarity from array_table where _rowid in {id_list} order by similarity desc ",
+                    params=(arr, )).to_df()
+                print(new_res.shape)
+        return res.set_index('rowid').reindex(new_res['_rowid'])
+
+    @property
+    def conn(self):
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
             if params:
                 return conn.execute(query, params)
