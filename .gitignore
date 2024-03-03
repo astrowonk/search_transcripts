@@ -7,3 +7,4 @@ __pycache__/
 atp/
 recdiff_transcripts/
 SCOTUS/
+*.db.wal
