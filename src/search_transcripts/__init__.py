@@ -247,6 +247,8 @@ class LoadTranscripts():
 
 class SearchTranscripts:
 
+    model = None
+
     def __init__(self, input_prefix=''):
         """Load the index and connect database"""
 
@@ -254,47 +256,90 @@ class SearchTranscripts:
             input_prefix = input_prefix + '_'
         self.input_prefix = input_prefix
         print(f"Using SQL Lite with {input_prefix}main.db ")
+        try:
+            self.model = llama_cpp.Llama(
+                model_path='../pbi/ggml-model-f16.gguf',
+                embedding=True,
+                verbose=False)
+        except:
+            print("semantic model failed to load")
+            pass
 
-        self.model = llama_cpp.Llama(model_path='../pbi/ggml-model-f16.gguf',
-                                     embedding=True,
-                                     verbose=False)
-
-    def new_search(
-        self,
-        search,
-        episode_range=None,
-        limit=50,
-        offset=0,
-    ):
-        with duckdb.connect('vectors.db') as con:
-            with sqlite3.connect(f'{self.input_prefix}main.db') as sqlite_con:
-                res = pd.read_sql(
-                    f"select bm25(search_data) as score, *,rowid from search_data where text MATCH ? order by score limit 500",
-                    params=(search, ),
-                    con=sqlite_con)
-                #print(res['rowid'])
-                id_list = tuple(res['rowid'].tolist())
-                arr = self.model.create_embedding(
-                    search)['data'][0]['embedding']
-                new_res = con.sql(
-                    f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as similarity from array_table where _rowid in {id_list} order by similarity desc ",
-                    params=(arr, )).to_df()
-                print(new_res.shape)
-        return res.set_index('rowid').reindex(new_res['_rowid'])
-
-    @property
-    def conn(self):
+    def run_sql(self, query, params=None):
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
             if params:
                 return conn.execute(query, params)
             else:
                 return conn.execute(query)
 
+    def new_search(self,
+                   search,
+                   episode_range=None,
+                   limit=50,
+                   offset=0,
+                   sort_by='score',
+                   sort_list=None,
+                   ascending=True):
+        search = my_escape_fts(search)
+        print(search)
+        sort_code = 'bm25(search_data)'
+
+        if episode_range:
+            episode_range_str = "and cast(episode_key as integer) between ? and ?"
+            params = (search, episode_range[0], episode_range[1])
+        else:
+            episode_range_str = ''
+            params = (search, )
+        with sqlite3.connect(f'{self.input_prefix}main.db') as sqlite_con:
+            res = pd.read_sql(
+                f"select bm25(search_data) as score, *, rowid, 0 as semantic_score from search_data where text MATCH ? {episode_range_str} order by {sort_code} limit 500",
+                params=params,
+                con=sqlite_con)
+            print(f"{res.shape} lexical search results")
+            if res.empty:
+                print('no lexical results, doing semantic only search')
+                print("creating query vector")
+                print(search)
+                arr = self.model.create_embedding(
+                    search)['data'][0]['embedding']
+                print(len(arr))
+                assert (len(arr) == 384,
+                        "vector length 384"), "Vector length wrong"
+                with duckdb.connect('vectors.db', read_only=True) as con:
+                    new_res = con.sql(
+                        f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as semantic_score from array_table where semantic_score > .29 order by semantic_score desc limit ? offset ? ",
+                        params=(arr, limit, offset),
+                    ).to_df()
+                id_list = tuple(new_res['_rowid'].tolist())
+                if len(id_list) == 1:
+                    id_list = f"({id_list[0]})"
+                out = pd.read_sql(
+                    f"select *,rowid from search_data where rowid in {id_list}",
+                    #params=params,
+                    con=sqlite_con).set_index('rowid')
+                out['semantic_score'] = new_res.set_index(
+                    '_rowid')['semantic_score']
+                print(f"Returning out with shape {out.shape}")
+                return out.assign(score=0)
+        with duckdb.connect('vectors.db', read_only=True) as con:
+
+            id_list = tuple(res['rowid'].tolist())
+            arr = self.model.create_embedding(search)['data'][0]['embedding']
+            new_res = con.sql(
+                f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as similarity from array_table where _rowid in {id_list} order by similarity desc limit ? offset ? ",
+                params=(arr, limit, offset)).to_df()
+            print(new_res.shape)
+            final = res.set_index('rowid').reindex(new_res['_rowid'])
+            final['semantic_score'] = new_res.set_index('_rowid')['similarity']
+            return final
+
     def sql_frame(self, query, params=None):
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
             return pd.read_sql(query, params=params, con=conn)
 
     def get_num_search_results(self, search, episode_range=None):
+        search = my_escape_fts(search)
+        print(f"For num search results search is {search}")
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
 
             if not episode_range:
@@ -304,13 +349,25 @@ class SearchTranscripts:
                         "select count(rowid) from search_data where text match ?;",
                         [my_escape_fts(search)]))[0]
             else:
-                return next(
+                res = next(
                     conn.execute(
                         "select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
                         [
                             my_escape_fts(search), episode_range[0],
                             episode_range[1]
                         ]))[0]
+                if res:
+                    return res
+                else:
+                    arr = self.model.create_embedding(
+                        search)['data'][0]['embedding']
+                    assert len(arr) == 384
+                    print(arr)
+                    with duckdb.connect('vectors.db', read_only=True) as con:
+                        new_res = con.sql(
+                            f"select count(*) as count from array_table where array_cosine_similarity(arr,?::DOUBLE[384]) > .29;  ",
+                            params=(arr, )).to_df()['count'].iloc[0]
+                        return new_res
 
     def search_bm25_chunk(self,
                           search,
