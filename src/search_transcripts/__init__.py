@@ -257,10 +257,9 @@ class SearchTranscripts:
         self.input_prefix = input_prefix
         print(f"Using SQL Lite with {input_prefix}main.db ")
         try:
-            self.model = llama_cpp.Llama(
-                model_path='../pbi/ggml-model-f16.gguf',
-                embedding=True,
-                verbose=False)
+            self.model = llama_cpp.Llama(model_path='ggml-model-f16.gguf',
+                                         embedding=True,
+                                         verbose=False)
         except:
             print("semantic model failed to load")
             pass
