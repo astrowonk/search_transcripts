@@ -281,7 +281,6 @@ class SearchTranscripts:
                    sort_list=None,
                    ascending=True):
         search = my_escape_fts(search)
-        print(search)
         sort_code = 'bm25(search_data)'
 
         if episode_range:
@@ -299,7 +298,6 @@ class SearchTranscripts:
             if res.empty:
                 print('no lexical results, doing semantic only search')
                 print("creating query vector")
-                print(search)
                 arr = self.model.create_embedding(
                     search)['data'][0]['embedding']
                 print(len(arr))
@@ -328,7 +326,6 @@ class SearchTranscripts:
             new_res = con.sql(
                 f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as similarity from array_table where _rowid in {id_list} order by similarity desc limit ? offset ? ",
                 params=(arr, limit, offset)).to_df()
-            print(new_res.shape)
             final = res.set_index('rowid').reindex(new_res['_rowid'])
             final['semantic_score'] = new_res.set_index('_rowid')['similarity']
             return final
@@ -339,7 +336,6 @@ class SearchTranscripts:
 
     def get_num_search_results(self, search, episode_range=None):
         search = my_escape_fts(search)
-        print(f"For num search results search is {search}")
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
 
             if not episode_range:
