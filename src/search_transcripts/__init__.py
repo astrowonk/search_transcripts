@@ -300,8 +300,7 @@ class SearchTranscripts:
                 arr = self.model.create_embedding(
                     search)['data'][0]['embedding']
                 print(len(arr))
-                assert (len(arr) == 384,
-                        "vector length 384"), "Vector length wrong"
+                assert len(arr) == 384, "Vector length wrong"
                 with duckdb.connect('vectors.db', read_only=True) as con:
                     new_res = con.sql(
                         f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as semantic_score from array_table where semantic_score > .29 order by semantic_score desc limit ? offset ? ",
