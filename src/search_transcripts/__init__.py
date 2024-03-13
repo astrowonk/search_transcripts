@@ -14,445 +14,435 @@ from multiprocessing import cpu_count
 
 
 def flatten_list(list_of_lists):
-    return [y for x in list_of_lists for y in x]
+	return [y for x in list_of_lists for y in x]
 
 
 def my_escape_fts(search):
-    search = search.replace("‘", "'").replace("’", "'")
-    search = search.replace('“', '"').replace('”', '"')
-    if '"' in search or "'" in search:
-        return escape_fts(search)
-    else:
-        return search
+	search = search.replace("‘", "'").replace("’", "'")
+	search = search.replace('“', '"').replace('”', '"')
+	if '"' in search or "'" in search:
+		return escape_fts(search)
+	else:
+		return search
 
 
-class LoadTranscripts():
-    """Load a directory of VTT or .json transcripts (from Whisper) into a sqlite database. It also creates an BM25 index.
-    
-    This creates the data for SearchTranscripts()
+class LoadTranscripts:
+	"""Load a directory of VTT or .json transcripts (from Whisper) into a sqlite database. It also creates an BM25 index.
 
-    rebuild defaults to False but the key_regex must be consistent between builds or duplicates may be inserted. key_regex processes the file/path name to
-    whatever string will be used in episode_key in the database.
-    
-    """
-    search_docs = None
-    word_limit = 300
-    conn = None
+	This creates the data for SearchTranscripts()
 
-    def __init__(self,
-                 path: str,
-                 key_regex: str = None,
-                 output_prefix: str = '',
-                 rebuild=False,
-                 sub_dict=None,
-                 make_key_integer=False) -> None:
-        """Initalize the class. path will be globbed for .vtt and .json files.
-        
-        the episode_key will come from the filename unless key_regex is specified to extract an episode number or other identifier.
-        
-        """
-        if sub_dict:
-            self.sub_dict = sub_dict
-        else:
-            self.sub_dict = {}
-        self.rebuild = rebuild
-        if output_prefix:
-            output_prefix = output_prefix + '_'
-        self.output_prefix = output_prefix
-        self.key_regex = key_regex
-        self.make_key_integer = make_key_integer
-        self.load_all_files(path)
-        self.stop_words = []
+	rebuild defaults to False but the key_regex must be consistent between builds or duplicates may be inserted. key_regex processes the file/path name to
+	whatever string will be used in episode_key in the database.
 
-    def process_all(self):
-        """build search documents and save the database"""
+	"""
 
-        if self.rebuild:
-            print("Rebuild is True, dropping tables for full rebuild.")
-            self.drop_tables()
-        else:
-            print("cleaning data")
-            self.clean_data()
-        self.process_substitutions()
+	search_docs = None
+	word_limit = 300
+	conn = None
 
-        self.build_search_documents()
-        self.save_data()
+	def __init__(
+		self,
+		path: str,
+		key_regex: str = None,
+		output_prefix: str = '',
+		rebuild=False,
+		sub_dict=None,
+		make_key_integer=False,
+	) -> None:
+		"""Initalize the class. path will be globbed for .vtt and .json files.
 
-    def load_all_files(self, path):
-        """Load all files into self.data, a list of dictionaries."""
-        json_files = glob.glob(f"{path}/*.json")
-        vtt_files = glob.glob(f"{path}/*.vtt")
-        print('loading data')
-        if not self.key_regex:
-            self.data = {x: json.load(open(x)) for x in tqdm(json_files)}
-            self.data.update({x: read_vtt(x) for x in tqdm(vtt_files)})
-        else:
-            self.data = {
-                self.process_regex(x): json.load(open(x))
-                for x in tqdm(json_files)
-            }
-            self.data.update(
-                {self.process_regex(x): read_vtt(x)
-                 for x in tqdm(vtt_files)})
+		the episode_key will come from the filename unless key_regex is specified to extract an episode number or other identifier.
 
-    def process_regex(self, x):
-        """turn the file names into whatever the regex finds.  Regex should have a () group."""
-        print(x)
-        m = re.search(self.key_regex, x)
-        if self.make_key_integer:
-            return int(m.group(1))
-        return m.group(1)
+		"""
+		if sub_dict:
+			self.sub_dict = sub_dict
+		else:
+			self.sub_dict = {}
+		self.rebuild = rebuild
+		if output_prefix:
+			output_prefix = output_prefix + '_'
+		self.output_prefix = output_prefix
+		self.key_regex = key_regex
+		self.make_key_integer = make_key_integer
+		self.load_all_files(path)
+		self.stop_words = []
 
-    def drop_tables(self):
-        with sqlite3.connect(f'{self.output_prefix}main.db') as conn:
-            conn.execute("drop table if exists all_segments;")
-            conn.execute("drop table if exists search_data;")
+	def process_all(self):
+		"""build search documents and save the database"""
 
-    def clean_data(self):
-        """Check for existing keys and skip insertion and processing of them"""
-        try:
-            existing_records = [
-                x[0] for x in sqlite3.connect(f'{self.output_prefix}main.db').
-                execute("select distinct(episode_key) from search_data;")
-            ]
-        except sqlite3.OperationalError:
-            existing_records = []
-        self.data = {
-            key: val
-            for key, val in self.data.items() if key not in existing_records
-        }
-        print(
-            f"{len(existing_records)} found in existing search_records database using regex for keys {self.key_regex}. Pruned new records to {len(self.data)}"
-        )
+		if self.rebuild:
+			print("Rebuild is True, dropping tables for full rebuild.")
+			self.drop_tables()
+		else:
+			print("cleaning data")
+			self.clean_data()
+		self.process_substitutions()
 
-    def save_data(self):
-        """take the list of dictionaries and create the sqlite table and indices."""
-        self.conn = sqlite3.connect(f'{self.output_prefix}main.db')
+		self.build_search_documents()
+		self.save_data()
 
-        if not self.data:
-            print("No records to write")
-            return
+	def load_all_files(self, path):
+		"""Load all files into self.data, a list of dictionaries."""
+		json_files = glob.glob(f"{path}/*.json")
+		vtt_files = glob.glob(f"{path}/*.vtt")
+		print('loading data')
+		if not self.key_regex:
+			self.data = {x: json.load(open(x)) for x in tqdm(json_files)}
+			self.data.update({x: read_vtt(x) for x in tqdm(vtt_files)})
+		else:
+			self.data = {self.process_regex(x): json.load(open(x)) for x in tqdm(json_files)}
+			self.data.update({self.process_regex(x): read_vtt(x) for x in tqdm(vtt_files)})
 
-        print(f"Writing SQL with {self.conn}")
-        print("Making table all_segments")
-        ## segment data
-        for key in self.data.keys():
-            df = pd.json_normalize(
-                self.data[key]).reset_index().rename(columns={
-                    'index': 'segment'
-                }).drop(columns='end')
-            df['start'] = df['start'].apply(self.make_timestamp)
-            df['episode_key'] = key
-            df.to_sql('all_segments',
-                      con=self.conn,
-                      if_exists='append',
-                      index=False)
+	def process_regex(self, x):
+		"""turn the file names into whatever the regex finds.  Regex should have a () group."""
+		print(x)
+		m = re.search(self.key_regex, x)
+		if self.make_key_integer:
+			return int(m.group(1))
+		return m.group(1)
 
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_segments on all_segments(segment,episode_key);"
-        )
+	def drop_tables(self):
+		with sqlite3.connect(f'{self.output_prefix}main.db') as conn:
+			conn.execute("drop table if exists all_segments;")
+			conn.execute("drop table if exists search_data;")
 
-        ## search chunk data
-        print("Making table search_data")
+	def clean_data(self):
+		"""Check for existing keys and skip insertion and processing of them"""
+		try:
+			existing_records = [
+				x[0]
+				for x in sqlite3.connect(f'{self.output_prefix}main.db').execute(
+					"select distinct(episode_key) from search_data;"
+				)
+			]
+		except sqlite3.OperationalError:
+			existing_records = []
+		self.data = {key: val for key, val in self.data.items() if key not in existing_records}
+		print(
+			f"{len(existing_records)} found in existing search_records database using regex for keys {self.key_regex}. Pruned new records to {len(self.data)}"
+		)
 
-        df = pd.DataFrame(self.search_docs).drop(columns=['end_ts'],
-                                                 errors='ignore')
-        print(df.columns)
+	def save_data(self):
+		"""take the list of dictionaries and create the sqlite table and indices."""
+		self.conn = sqlite3.connect(f'{self.output_prefix}main.db')
 
-        self.conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(episode_key, text,start,end,start_ts, start_segment, end_segment, tokenize = 'porter ascii');"
-        )
-        df.to_sql('search_data',
-                  con=self.conn,
-                  if_exists='append',
-                  index=False)
+		if not self.data:
+			print("No records to write")
+			return
 
-        print("Optimizing...")
-        self.conn.execute(
-            "insert into search_data(search_data) values ('optimize');")
-        self.conn.close()
+		print(f"Writing SQL with {self.conn}")
+		print("Making table all_segments")
+		## segment data
+		for key in self.data.keys():
+			df = (
+				pd.json_normalize(self.data[key])
+				.reset_index()
+				.rename(columns={'index': 'segment'})
+				.drop(columns='end')
+			)
+			df['start'] = df['start'].apply(self.make_timestamp)
+			df['episode_key'] = key
+			df.to_sql('all_segments', con=self.conn, if_exists='append', index=False)
 
-    def build_search_documents(self):
-        """tokenize and segment each transcript."""
-        self.tokenized_docs = []
-        self.search_docs = []
+		self.conn.execute(
+			"CREATE INDEX IF NOT EXISTS idx_segments on all_segments(segment,episode_key);"
+		)
 
-        if not self.data:
-            self.search_docs = []
-            return
+		## search chunk data
+		print("Making table search_data")
 
-        workers = cpu_count()
-        print(f'build search documents with {workers} workers')
+		df = pd.DataFrame(self.search_docs).drop(columns=['end_ts'], errors='ignore')
+		print(df.columns)
 
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            out = list(
-                tqdm(executor.map(self.create_rolling_docs, self.data.items()),
-                     total=len(self.data)))
+		self.conn.execute(
+			"CREATE VIRTUAL TABLE IF NOT EXISTS search_data USING fts5(episode_key, text,start,end,start_ts, start_segment, end_segment, tokenize = 'porter ascii');"
+		)
+		df.to_sql('search_data', con=self.conn, if_exists='append', index=False)
 
-        self.search_docs = flatten_list(out)
+		print("Optimizing...")
+		self.conn.execute("insert into search_data(search_data) values ('optimize');")
+		self.conn.close()
 
-    def process_substitutions(self):
-        """Consistently mistranscribed words or regex patterns are replaced segment by segment."""
-        if not self.sub_dict:
-            return
-        for key, val in tqdm(self.data.items()):
-            for item in val:
-                for word, replacement in self.sub_dict.items():
-                    item['text'] = re.sub(word, replacement, item['text'])
+	def build_search_documents(self):
+		"""tokenize and segment each transcript."""
+		self.tokenized_docs = []
+		self.search_docs = []
 
-    def create_rolling_docs(self, x):
-        """For a given transcript, chunk 300 words together to make an indexable document."""
-        i = 0
-        all_chunk = []
-        key, data = x
-        data = deque(data)
-        while data:
-            chunk = []
-            chunk_word_length = 0
-            while data and chunk_word_length < self.word_limit:
-                bit = data.popleft()
-                bit['i'] = i
-                i += 1
-                chunk.append(bit)
-                chunk_word_length += len(bit['text'].split(' '))
-            start_segment = chunk[0]['i']
-            end_segment = chunk[-1]['i']
+		if not self.data:
+			self.search_docs = []
+			return
 
-            start_time = chunk[0]['start']
+		workers = cpu_count()
+		print(f'build search documents with {workers} workers')
 
-            full_text = ' '.join([x['text'] for x in chunk])
+		with ProcessPoolExecutor(max_workers=workers) as executor:
+			out = list(
+				tqdm(
+					executor.map(self.create_rolling_docs, self.data.items()), total=len(self.data)
+				)
+			)
 
-            #url = self.make_url(start_time)
+		self.search_docs = flatten_list(out)
 
-            all_chunk.append({
-                'episode_key': key,
-                'text': full_text,
-                'start': start_time,
-                'end': chunk[-1]['end'],
-                'start_ts': self.make_timestamp(start_time),
-                'end_ts': self.make_timestamp(chunk[-1]['end']),
-                'start_segment': start_segment,
-                'end_segment': end_segment
-            })
-        return all_chunk
+	def process_substitutions(self):
+		"""Consistently mistranscribed words or regex patterns are replaced segment by segment."""
+		if not self.sub_dict:
+			return
+		for key, val in tqdm(self.data.items()):
+			for item in val:
+				for word, replacement in self.sub_dict.items():
+					item['text'] = re.sub(word, replacement, item['text'])
 
-    @staticmethod
-    def make_timestamp(x):
-        """Convert decimal seconds to a string H:M:S.Z timestamp"""
-        hours = int(x // 3600)
-        minutes = int((x - hours * 3600) // 60)
-        seconds = x - hours * 3600 - minutes * 60
-        return f"{process_hour(hours)}{minutes:02}:{seconds:05.2f}"
+	def create_rolling_docs(self, x):
+		"""For a given transcript, chunk 300 words together to make an indexable document."""
+		i = 0
+		all_chunk = []
+		key, data = x
+		data = deque(data)
+		while data:
+			chunk = []
+			chunk_word_length = 0
+			while data and chunk_word_length < self.word_limit:
+				bit = data.popleft()
+				bit['i'] = i
+				i += 1
+				chunk.append(bit)
+				chunk_word_length += len(bit['text'].split(' '))
+			start_segment = chunk[0]['i']
+			end_segment = chunk[-1]['i']
+
+			start_time = chunk[0]['start']
+
+			full_text = ' '.join([x['text'] for x in chunk])
+
+			# url = self.make_url(start_time)
+
+			all_chunk.append(
+				{
+					'episode_key': key,
+					'text': full_text,
+					'start': start_time,
+					'end': chunk[-1]['end'],
+					'start_ts': self.make_timestamp(start_time),
+					'end_ts': self.make_timestamp(chunk[-1]['end']),
+					'start_segment': start_segment,
+					'end_segment': end_segment,
+				}
+			)
+		return all_chunk
+
+	@staticmethod
+	def make_timestamp(x):
+		"""Convert decimal seconds to a string H:M:S.Z timestamp"""
+		hours = int(x // 3600)
+		minutes = int((x - hours * 3600) // 60)
+		seconds = x - hours * 3600 - minutes * 60
+		return f"{process_hour(hours)}{minutes:02}:{seconds:05.2f}"
 
 
 class SearchTranscripts:
+	model = None
 
-    model = None
+	def __init__(self, input_prefix=''):
+		"""Load the index and connect database"""
 
-    def __init__(self, input_prefix=''):
-        """Load the index and connect database"""
+		if input_prefix:
+			input_prefix = input_prefix + '_'
+		self.input_prefix = input_prefix
+		print(f"Using SQL Lite with {input_prefix}main.db ")
+		try:
+			self.model = llama_cpp.Llama(
+				model_path='ggml-model-f16.gguf', embedding=True, verbose=False
+			)
+		except:
+			print("semantic model failed to load")
+			pass
 
-        if input_prefix:
-            input_prefix = input_prefix + '_'
-        self.input_prefix = input_prefix
-        print(f"Using SQL Lite with {input_prefix}main.db ")
-        try:
-            self.model = llama_cpp.Llama(model_path='ggml-model-f16.gguf',
-                                         embedding=True,
-                                         verbose=False)
-        except:
-            print("semantic model failed to load")
-            pass
+	def run_sql(self, query, params=None):
+		with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+			if params:
+				return conn.execute(query, params)
+			else:
+				return conn.execute(query)
 
-    def run_sql(self, query, params=None):
-        with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
-            if params:
-                return conn.execute(query, params)
-            else:
-                return conn.execute(query)
+	def new_search(
+		self,
+		search,
+		episode_range=None,
+		limit=50,
+		offset=0,
+		sort_by='score',
+		sort_list=None,
+		ascending=True,
+	):
+		search = my_escape_fts(search)
+		sort_code = 'bm25(search_data)'
 
-    def new_search(self,
-                   search,
-                   episode_range=None,
-                   limit=50,
-                   offset=0,
-                   sort_by='score',
-                   sort_list=None,
-                   ascending=True):
-        search = my_escape_fts(search)
-        sort_code = 'bm25(search_data)'
+		if episode_range:
+			episode_range_str = "and cast(episode_key as integer) between ? and ?"
+			params = (search, episode_range[0], episode_range[1])
+		else:
+			episode_range_str = ''
+			params = (search,)
+		with sqlite3.connect(f'{self.input_prefix}main.db') as sqlite_con:
+			res = pd.read_sql(
+				f"select bm25(search_data) as score, *, rowid, 0 as semantic_score from search_data where text MATCH ? {episode_range_str} order by {sort_code} limit 500",
+				params=params,
+				con=sqlite_con,
+			)
+			print(f"{res.shape} lexical search results")
+			if res.empty:
+				print('no lexical results, doing semantic only search')
+				print("creating query vector")
+				arr = self.model.create_embedding(search)['data'][0]['embedding']
+				print(len(arr))
+				assert len(arr) == 384, "Vector length wrong"
+				with duckdb.connect('vectors.db', read_only=True) as con:
+					new_res = con.sql(
+						"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as semantic_score from array_table where semantic_score > .29 order by semantic_score desc limit ? offset ? ",
+						params=(arr, limit, offset),
+					).to_df()
+				id_list = tuple(new_res['_rowid'].tolist())
+				if len(id_list) == 1:
+					id_list = f"({id_list[0]})"
+				out = pd.read_sql(
+					f"select *,rowid from search_data where rowid in {id_list}",
+					# params=params,
+					con=sqlite_con,
+				).set_index('rowid')
+				out['semantic_score'] = new_res.set_index('_rowid')['semantic_score']
+				print(f"Returning out with shape {out.shape}")
+				return out.assign(score=0)
+		with duckdb.connect('vectors.db', read_only=True) as con:
+			id_list = tuple(res['rowid'].tolist())
+			arr = self.model.create_embedding(search)['data'][0]['embedding']
+			new_res = con.sql(
+				f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as similarity from array_table where _rowid in {id_list} order by similarity desc limit ? offset ? ",
+				params=(arr, limit, offset),
+			).to_df()
+			final = res.set_index('rowid').reindex(new_res['_rowid'])
+			final['semantic_score'] = new_res.set_index('_rowid')['similarity']
+			return final
 
-        if episode_range:
-            episode_range_str = "and cast(episode_key as integer) between ? and ?"
-            params = (search, episode_range[0], episode_range[1])
-        else:
-            episode_range_str = ''
-            params = (search, )
-        with sqlite3.connect(f'{self.input_prefix}main.db') as sqlite_con:
-            res = pd.read_sql(
-                f"select bm25(search_data) as score, *, rowid, 0 as semantic_score from search_data where text MATCH ? {episode_range_str} order by {sort_code} limit 500",
-                params=params,
-                con=sqlite_con)
-            print(f"{res.shape} lexical search results")
-            if res.empty:
-                print('no lexical results, doing semantic only search')
-                print("creating query vector")
-                arr = self.model.create_embedding(
-                    search)['data'][0]['embedding']
-                print(len(arr))
-                assert len(arr) == 384, "Vector length wrong"
-                with duckdb.connect('vectors.db', read_only=True) as con:
-                    new_res = con.sql(
-                        f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as semantic_score from array_table where semantic_score > .29 order by semantic_score desc limit ? offset ? ",
-                        params=(arr, limit, offset),
-                    ).to_df()
-                id_list = tuple(new_res['_rowid'].tolist())
-                if len(id_list) == 1:
-                    id_list = f"({id_list[0]})"
-                out = pd.read_sql(
-                    f"select *,rowid from search_data where rowid in {id_list}",
-                    #params=params,
-                    con=sqlite_con).set_index('rowid')
-                out['semantic_score'] = new_res.set_index(
-                    '_rowid')['semantic_score']
-                print(f"Returning out with shape {out.shape}")
-                return out.assign(score=0)
-        with duckdb.connect('vectors.db', read_only=True) as con:
+	def sql_frame(self, query, params=None):
+		with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+			return pd.read_sql(query, params=params, con=conn)
 
-            id_list = tuple(res['rowid'].tolist())
-            arr = self.model.create_embedding(search)['data'][0]['embedding']
-            new_res = con.sql(
-                f"select _rowid, array_cosine_similarity(arr,?::DOUBLE[384]) as similarity from array_table where _rowid in {id_list} order by similarity desc limit ? offset ? ",
-                params=(arr, limit, offset)).to_df()
-            final = res.set_index('rowid').reindex(new_res['_rowid'])
-            final['semantic_score'] = new_res.set_index('_rowid')['similarity']
-            return final
+	def get_num_search_results(self, search, episode_range=None):
+		search = my_escape_fts(search)
+		with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+			if not episode_range:
+				return next(
+					conn.execute(
+						"select count(rowid) from search_data where text match ?;",
+						[my_escape_fts(search)],
+					)
+				)[0]
+			else:
+				res = next(
+					conn.execute(
+						"select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
+						[my_escape_fts(search), episode_range[0], episode_range[1]],
+					)
+				)[0]
+				if res:
+					return res
+				else:
+					arr = self.model.create_embedding(search)['data'][0]['embedding']
+					assert len(arr) == 384
+					print(arr)
+					with duckdb.connect('vectors.db', read_only=True) as con:
+						new_res = (
+							con.sql(
+								"select count(*) as count from array_table where array_cosine_similarity(arr,?::DOUBLE[384]) > .29;  ",
+								params=(arr,),
+							)
+							.to_df()['count']
+							.iloc[0]
+						)
+						return new_res
 
-    def sql_frame(self, query, params=None):
-        with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
-            return pd.read_sql(query, params=params, con=conn)
+	def search_bm25_chunk(self, search, episode_range=None, limit=50, offset=0, sort_by='score'):
+		"""Use the BM25 ordering to retrieve the top results from sql. limit and offset keyword argument provide for pagination."""
+		print(my_escape_fts(search))
+		if sort_by == 'score':
+			sort_code = 'bm25(search_data)'
+		elif sort_by == 'episode_key_asc':
+			sort_code = 'cast(episode_key as integer) ASC, bm25(search_data)'
+		elif sort_by == 'episode_key_desc':
+			sort_code = 'cast(episode_key as integer) DESC, bm25(search_data)'
+		if not episode_range:
+			# not thrilled about the use of an fstring but it can only be one of the three optinos above, not user input.
+			df = self.sql_frame(
+				f"select bm25(search_data) as score, * from search_data where text MATCH ? order by {sort_code} limit ? offset ?;",
+				params=[my_escape_fts(search), limit, offset],
+			)
+		else:
+			print(episode_range[0], episode_range[1])
+			df = self.sql_frame(
+				f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by {sort_code} limit ? offset ?;",
+				params=[my_escape_fts(search), episode_range[0], episode_range[1], limit, offset],
+			)
+		return df
 
-    def get_num_search_results(self, search, episode_range=None):
-        search = my_escape_fts(search)
-        with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
+	def get_segment_detail(self, key, start, end):
+		"""Get the text of the appropriate segments from sql. a future version may create time stamp specicifc links for each section."""
+		return self.sql_frame(
+			"SELECT * from all_segments where episode_key = ? and segment BETWEEN ? and ?",
+			params=[key, start, end],
+		)
 
-            if not episode_range:
+	def search(self, search, **kwargs):
+		"""Search and return results wrapping exact matches in ** for markdown"""
+		base_res = self.search_bm25_chunk(search, **kwargs)
+		search = search.lower().strip('"')
+		base_res['exact_match'] = base_res['text'].apply(lambda x: search in x.lower()).astype(int)
+		base_res['text'] = base_res['text'].apply(lambda x: process_bold(x, search))
 
-                return next(
-                    conn.execute(
-                        "select count(rowid) from search_data where text match ?;",
-                        [my_escape_fts(search)]))[0]
-            else:
-                res = next(
-                    conn.execute(
-                        "select count(rowid) from search_data where text match ? and cast(episode_key as integer) between ? and ?;",
-                        [
-                            my_escape_fts(search), episode_range[0],
-                            episode_range[1]
-                        ]))[0]
-                if res:
-                    return res
-                else:
-                    arr = self.model.create_embedding(
-                        search)['data'][0]['embedding']
-                    assert len(arr) == 384
-                    print(arr)
-                    with duckdb.connect('vectors.db', read_only=True) as con:
-                        new_res = con.sql(
-                            f"select count(*) as count from array_table where array_cosine_similarity(arr,?::DOUBLE[384]) > .29;  ",
-                            params=(arr, )).to_df()['count'].iloc[0]
-                        return new_res
-
-    def search_bm25_chunk(self,
-                          search,
-                          episode_range=None,
-                          limit=50,
-                          offset=0,
-                          sort_by='score'):
-        """Use the BM25 ordering to retrieve the top results from sql. limit and offset keyword argument provide for pagination."""
-        print(my_escape_fts(search))
-        if sort_by == 'score':
-            sort_code = 'bm25(search_data)'
-        elif sort_by == 'episode_key_asc':
-            sort_code = 'cast(episode_key as integer) ASC, bm25(search_data)'
-        elif sort_by == 'episode_key_desc':
-            sort_code = 'cast(episode_key as integer) DESC, bm25(search_data)'
-        if not episode_range:
-            #not thrilled about the use of an fstring but it can only be one of the three optinos above, not user input.
-            df = self.sql_frame(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? order by {sort_code} limit ? offset ?;",
-                params=[my_escape_fts(search), limit, offset])
-        else:
-            print(episode_range[0], episode_range[1])
-            df = self.sql_frame(
-                f"select bm25(search_data) as score, * from search_data where text MATCH ? and cast(episode_key as integer) between ? and ? order by {sort_code} limit ? offset ?;",
-                params=[
-                    my_escape_fts(search), episode_range[0], episode_range[1],
-                    limit, offset
-                ])
-        return df
-
-    def get_segment_detail(self, key, start, end):
-        """Get the text of the appropriate segments from sql. a future version may create time stamp specicifc links for each section."""
-        return self.sql_frame(
-            f"SELECT * from all_segments where episode_key = ? and segment BETWEEN ? and ?",
-            params=[key, start, end])
-
-    def search(self, search, **kwargs):
-        """Search and return results wrapping exact matches in ** for markdown"""
-        base_res = self.search_bm25_chunk(search, **kwargs)
-        search = search.lower().strip('"')
-        base_res['exact_match'] = base_res['text'].apply(
-            lambda x: search in x.lower()).astype(int)
-        base_res['text'] = base_res['text'].apply(
-            lambda x: process_bold(x, search))
-
-        return base_res.sort_values(['exact_match', 'score'],
-                                    ascending=[False, True])
+		return base_res.sort_values(['exact_match', 'score'], ascending=[False, True])
 
 
 def process_bold(x, search):
-    """Wrap exact matches with double asterisks for markdown"""
-    idx = x.lower().find(search.lower())
-    if idx != -1:
-        return ''.join([
-            x[0:idx], '**', x[idx:idx + len(search)], '**',
-            x[idx + len(search):]
-        ])
-    return x
+	"""Wrap exact matches with double asterisks for markdown"""
+	idx = x.lower().find(search.lower())
+	if idx != -1:
+		return ''.join([x[0:idx], '**', x[idx : idx + len(search)], '**', x[idx + len(search) :]])
+	return x
 
 
 def convert_timestamp(ts):
-    """Convert a timestamp H:M:S.Z into decimal seconds"""
-    return sum(float(x) * 60**i for i, x in enumerate(reversed(ts.split(':'))))
+	"""Convert a timestamp H:M:S.Z into decimal seconds"""
+	return sum(float(x) * 60**i for i, x in enumerate(reversed(ts.split(':'))))
 
 
 def read_vtt(filename):
-    """Load a VTT file into a list of dictionaries, similar to the json structure created by the whsiper.trascribe() python API."""
+	"""Load a VTT file into a list of dictionaries, similar to the json structure created by the whsiper.trascribe() python API."""
 
-    try:
-        out = []
-        with open(filename, 'r') as f:
-            _ = f.readline()  # skip first two lines
-            _ = f.readline()
-            for line1 in f:
-                if not line1.strip():
-                    continue
-                while not (line2 := next(f)):
-                    pass
-                start, end = [x.strip() for x in line1.split("-->")]
-                out.append({
-                    'start': convert_timestamp(start),
-                    'end': convert_timestamp(end),
-                    'text': line2.strip('\n'),
-                })
-    except StopIteration:
-        print("stop")
-    return out
+	try:
+		out = []
+		with open(filename, 'r') as f:
+			_ = f.readline()  # skip first two lines
+			_ = f.readline()
+			for line1 in f:
+				if not line1.strip():
+					continue
+				while not (line2 := next(f)):
+					pass
+				start, end = [x.strip() for x in line1.split("-->")]
+				out.append(
+					{
+						'start': convert_timestamp(start),
+						'end': convert_timestamp(end),
+						'text': line2.strip('\n'),
+					}
+				)
+	except StopIteration:
+		print("stop")
+	return out
 
 
 def process_hour(x):
-    """simple conditional for hour format"""
-    if x:
-        return f"{x:02}:"
-    return ''
+	"""simple conditional for hour format"""
+	if x:
+		return f"{x:02}:"
+	return ''

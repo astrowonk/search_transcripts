@@ -49,3 +49,12 @@ packages = ["src/search_transcripts"]
 
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "tab"
+docstring-code-format = true
+skip-magic-trailing-comma = true
