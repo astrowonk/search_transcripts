@@ -55,6 +55,6 @@ line-length = 100
 
 [tool.ruff.format]
 quote-style = "preserve"
-indent-style = "tab"
+indent-style = "space"
 docstring-code-format = true
 skip-magic-trailing-comma = true
