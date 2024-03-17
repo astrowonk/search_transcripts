@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["pandas", "numpy"]
+dependencies = ["pandas", "numpy", "llama-cpp-python", "duckdb"]
 
 [project.urls]
 Documentation = "https://github.com/astrowonk/search_transcripts/#readme"
