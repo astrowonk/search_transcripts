@@ -8,8 +8,12 @@ from .utils import escape_fts
 from collections import deque
 import llama_cpp
 import duckdb
-import torch
-from sentence_transformers import SentenceTransformer
+
+try:
+    import torch
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    pass
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
