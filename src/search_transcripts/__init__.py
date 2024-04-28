@@ -8,6 +8,8 @@ from .utils import escape_fts
 from collections import deque
 import llama_cpp
 import duckdb
+import torch
+from sentence_transformers import SentenceTransformer
 
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
@@ -80,6 +82,44 @@ class LoadTranscripts:
 
         self.build_search_documents()
         self.save_data()
+
+    def get_max_vector_row(self):
+        tbl_name = f'{self.output_prefix}vectors.db'
+        print(f"connecting to {tbl_name}")
+        duck_con = duckdb.connect(tbl_name)
+        duck_con.sql('CREATE TABLE if not exists array_table (arr double[384],_rowid INTEGER );')
+        try:
+            max_row = duck_con.sql("select max(_rowid) from main.array_table;").fetchone()[0]
+        except:
+            max_row = 0
+        duck_con.close()
+        if max_row is None:
+            max_row = 0
+        return max_row
+
+    def update_semantic_database(self):
+        max_row = self.get_max_vector_row()
+        with sqlite3.connect(f'{self.output_prefix}main.db') as sqllite_con:
+            df = pd.read_sql(
+                "select *,rowid from search_data where rowid > ?",
+                con=sqllite_con,
+                params=(max_row,),
+            )
+            print(df.shape)
+            df['episode_key'] = df['episode_key'].astype(int)
+
+        model = SentenceTransformer('msmarco-MiniLM-L-6-v3', device=torch.device('mps'))
+        model.max_seq_length = 400
+        vectors = model.encode(df['text'])
+        print(len(vectors))
+        con = duckdb.connect(f'{self.output_prefix}vectors.db')
+        for i in tqdm(range(len(vectors))):
+            thelist = [float(x) for x in vectors[i]]
+            sql = "insert into array_table values(?,?);"
+            con.sql(sql, params=(thelist, int(df['rowid'].iloc[i])))
+        # con.sql("create index row_id_idx on array_table(_rowid);")
+        con.commit()
+        con.close()
 
     def load_all_files(self, path):
         """Load all files into self.data, a list of dictionaries."""
@@ -313,7 +353,7 @@ class SearchTranscripts:
                 out['semantic_score'] = new_res.set_index('_rowid')['semantic_score']
                 print(f"Returning out with shape {out.shape}")
                 return out.assign(score=0)
-        with duckdb.connect('vectors.db', read_only=True) as con:
+        with duckdb.connect(f'{self.input_prefix}vectors.db', read_only=True) as con:
             id_list = tuple(res['rowid'].tolist())
             arr = self.model.create_embedding(search)['data'][0]['embedding']
             new_res = con.sql(
