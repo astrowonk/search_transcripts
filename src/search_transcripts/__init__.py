@@ -258,7 +258,22 @@ class SearchTranscripts(LoadTranscripts):
         with sqlite3.connect(f'{self.input_prefix}main.db') as conn:
             return conn  #kind of suprised this works
 
+    def _check_episode_key_numeric(self):
+        """Validate that episode_key values are integers for range/sort operations."""
+        try:
+            sample = next(self.conn.execute("SELECT episode_key FROM search_data LIMIT 1;"), None)
+            if sample is not None:
+                try:
+                    int(sample[0])
+                except ValueError:
+                    raise ValueError("episode_key values in the database are not integers. "
+                                     "episode_range and sort_by='episode_key_asc/desc' require integer episode_keys.")
+        except sqlite3.OperationalError:
+            pass
+
     def get_num_search_results(self, search, episode_range=None):
+        if episode_range is not None:
+            self._check_episode_key_numeric()
         if not episode_range:
             return next(
                 self.conn.execute(
@@ -280,6 +295,8 @@ class SearchTranscripts(LoadTranscripts):
                           offset=0,
                           sort_by='score'):
         """Use the BM25 ordering to retrieve the top results from sql. limit and offset keyword argument provide for pagination."""
+        if episode_range is not None or sort_by in ('episode_key_asc', 'episode_key_desc'):
+            self._check_episode_key_numeric()
         print(my_escape_fts(search))
         if sort_by == 'score':
             sort_code = 'bm25(search_data)'
